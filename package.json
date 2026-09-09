@@ -1,9 +1,12 @@
 {
-    "name": "shopify-ai-gateway",
-    "version": "1.0.0",
-    "description": "Secure serverless bridge between Shopify and OpenAI",
-    "main": "api/recommend.js",
-    "dependencies": {
-      "openai": "^4.0.0"
-    }
+  "name": "shopify-ai-gateway",
+  "version": "1.0.0",
+  "description": "Secure serverless bridge between Shopify and OpenAI",
+  "main": "api/recommend.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "openai": "^4.77.0"
   }
+}

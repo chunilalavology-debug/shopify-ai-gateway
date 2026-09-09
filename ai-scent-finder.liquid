@@ -1,0 +1,1391 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  .scent-finder-app,
+  .scent-finder-app *,
+  .scent-finder-app *::before,
+  .scent-finder-app *::after {
+    box-sizing: border-box;
+  }
+
+  .scent-finder-app {
+    --sf-coral: #f47769;
+    --sf-coral-dark: #ed6b5d;
+    --sf-ink: #171717;
+    --sf-muted: rgba(18, 18, 18, 0.62);
+    --header-offset: var(--header-height, 72px);
+    position: relative;
+    width: 100%;
+    min-height: calc(100svh - var(--header-offset));
+    overflow: hidden;
+    background: linear-gradient(115deg, #c9e2e8 0%, #d1e7e7 45%, #d8e9dc 100%);
+    color: var(--sf-ink);
+    font-family: "Poppins", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    transition: background 0.6s ease;
+  }
+
+  .scent-finder-app button,
+  .scent-finder-app input {
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .scent-finder-app .botanical-background {
+    position: absolute;
+    inset: -8%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  .scent-finder-app .botanical-background::before {
+    content: "";
+    position: absolute;
+    width: 48vw;
+    height: 48vw;
+    min-width: 420px;
+    min-height: 420px;
+    right: -8vw;
+    bottom: -12vw;
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(115, 157, 43, 0.92) 0%,
+      rgba(82, 131, 24, 0.82) 35%,
+      rgba(74, 119, 24, 0.38) 60%,
+      rgba(74, 119, 24, 0) 74%
+    );
+    filter: blur(35px);
+    transform: rotate(-12deg);
+  }
+
+  .scent-finder-app .botanical-background::after {
+    content: "";
+    position: absolute;
+    width: 38vw;
+    height: 28vw;
+    left: 4vw;
+    bottom: -12vw;
+    border-radius: 60% 40% 55% 45%;
+    background: linear-gradient(135deg, rgba(63, 105, 21, 0.85), rgba(107, 145, 47, 0.4));
+    filter: blur(38px);
+    transform: rotate(-12deg);
+  }
+
+  .scent-finder-app .leaf {
+    position: absolute;
+    border-radius: 70% 30% 65% 35%;
+    background: linear-gradient(135deg, rgba(54, 102, 18, 0.85), rgba(111, 154, 43, 0.38));
+    filter: blur(24px);
+    opacity: 0.75;
+  }
+
+  .scent-finder-app .leaf-one { width: 180px; height: 480px; right: 20%; top: 24%; transform: rotate(13deg); }
+  .scent-finder-app .leaf-two { width: 140px; height: 370px; right: 2%; top: 37%; transform: rotate(42deg); }
+  .scent-finder-app .leaf-three { width: 220px; height: 110px; left: 16%; bottom: 7%; transform: rotate(25deg); }
+  .scent-finder-app .leaf-four { width: 120px; height: 300px; right: -1%; top: -5%; transform: rotate(-32deg); }
+
+  .scent-finder-app .scent-finder-content {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    min-height: calc(100svh - var(--header-offset));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scent-finder-app .finder-step {
+    width: 100%;
+    min-height: calc(100svh - var(--header-offset));
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 72px 30px 88px;
+  }
+
+  .scent-finder-app .finder-step.active {
+    display: flex;
+    animation: scentFinderStepFadeIn 0.45s cubic-bezier(.25, 1, .5, 1) both;
+  }
+
+  @keyframes scentFinderStepFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .scent-finder-app .ai-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.035);
+  }
+
+  .scent-finder-app .ai-icon svg {
+    width: 31px;
+    height: 31px;
+  }
+
+  .scent-finder-app .landing-inner {
+    width: 100%;
+    max-width: 800px;
+  }
+
+  .scent-finder-app .landing-title {
+    margin: 0 0 20px;
+    color: #191919;
+    font-size: clamp(32px, 4vw, 40px);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+  }
+
+  .scent-finder-app .landing-title strong,
+  .scent-finder-app .email-title strong,
+  .scent-finder-app .chat-title strong {
+    font-weight: 700;
+  }
+
+  .scent-finder-app .landing-question {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 28px;
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+
+  .scent-finder-app .info-dot {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.45);
+    color: rgba(0, 0, 0, 0.4);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: help;
+  }
+
+  .scent-finder-app .landing-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+    width: 100%;
+    margin-bottom: 30px;
+  }
+
+  .scent-finder-app .landing-option {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.94);
+    color: #1c1c1c;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.3;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .scent-finder-app .landing-option:hover,
+  .scent-finder-app .landing-option:focus-visible {
+    transform: translateY(-1px);
+    background: #fff;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.04);
+  }
+
+  .scent-finder-app .landing-input,
+  .scent-finder-app .email-input,
+  .scent-finder-app .chat-input {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .scent-finder-app .landing-input,
+  .scent-finder-app .email-input {
+    height: 52px;
+    padding: 0 62px 0 22px;
+    border-radius: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.035);
+  }
+
+  .scent-finder-app .landing-input input,
+  .scent-finder-app .email-input input,
+  .scent-finder-app .chat-input input {
+    width: 100%;
+    border: 0 !important;
+    outline: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--sf-ink);
+    font-size: 16px;
+  }
+
+  .scent-finder-app .landing-input input::placeholder,
+  .scent-finder-app .email-input input::placeholder,
+  .scent-finder-app .chat-input input::placeholder {
+    color: #78838f;
+    opacity: 1;
+  }
+
+  .scent-finder-app .coral-arrow {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background: var(--sf-coral) !important;
+    color: #fff !important;
+    font-size: 17px;
+    font-weight: 300;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+  }
+
+  .scent-finder-app .coral-arrow:hover {
+    background: var(--sf-coral-dark) !important;
+    transform: translateY(-50%) scale(1.04);
+  }
+
+  .scent-finder-app .coral-arrow:disabled,
+  .scent-finder-app .ask-button:disabled,
+  .scent-finder-app .chat-chip:disabled,
+  .scent-finder-app .landing-option:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .scent-finder-app .email-inner {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .scent-finder-app .email-title {
+    margin: 0 0 9px;
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+
+  .scent-finder-app .email-title strong {
+    display: block;
+  }
+
+  .scent-finder-app .email-subtitle {
+    margin: 0 0 14px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .scent-finder-app .field-error {
+    margin: 10px 4px 0;
+    color: #c74435;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .scent-finder-app .field-error[hidden] {
+    display: none !important;
+  }
+
+  .scent-finder-app .chat-step {
+    align-items: stretch;
+    padding: 56px 40px 36px;
+  }
+
+  .scent-finder-app .chat-layout {
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.35fr);
+    gap: 48px;
+    align-items: stretch;
+    min-height: calc(100svh - var(--header-offset) - 92px);
+  }
+
+  .scent-finder-app .chat-intro {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-bottom: 24px;
+  }
+
+  .scent-finder-app .chat-title {
+    max-width: 500px;
+    margin: 0 0 12px;
+    font-size: clamp(28px, 3.2vw, 43px);
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+  }
+
+  .scent-finder-app .chat-description {
+    max-width: 460px;
+    margin: 0 0 18px;
+    color: var(--sf-muted);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .scent-finder-app .quota-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(18, 18, 18, 0.5);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .scent-finder-app .quota-dots {
+    display: flex;
+    gap: 5px;
+  }
+
+  .scent-finder-app .quota-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  }
+
+  .scent-finder-app .quota-dots span.used {
+    background: var(--sf-coral);
+    box-shadow: none;
+  }
+
+  .scent-finder-app .chat-panel {
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .scent-finder-app .chat-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: min(52vh, 480px);
+    overflow-y: auto;
+    padding: 4px 4px 8px 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(244, 119, 105, 0.5) transparent;
+  }
+
+  .scent-finder-app .chat-row {
+    display: flex;
+    width: 100%;
+  }
+
+  .scent-finder-app .chat-row.user {
+    justify-content: flex-end;
+  }
+
+  .scent-finder-app .user-bubble {
+    max-width: min(78%, 320px);
+    padding: 12px 18px;
+    border-radius: 24px 24px 4px 24px;
+    background: rgba(247, 235, 216, 0.95);
+    color: #191919;
+    font-size: 13px;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  .scent-finder-app .bot-bubble {
+    width: 100%;
+    padding: 20px 22px;
+    border-radius: 4px 22px 22px 22px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.035);
+    color: #1b1b1b;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .scent-finder-app .bot-bubble strong {
+    font-weight: 700;
+  }
+
+  .scent-finder-app .limit-card {
+    width: 100%;
+    padding: 20px 22px;
+    border-radius: 18px;
+    background: rgba(255, 248, 246, 0.95);
+    border: 1px solid rgba(244, 119, 105, 0.28);
+    color: #7a332b;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .scent-finder-app .limit-card strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+
+  .scent-finder-app .product-card {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 16px;
+    padding: 14px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.88);
+    animation: scentFinderProductFadeIn 0.45s ease both;
+  }
+
+  @keyframes scentFinderProductFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .scent-finder-app .product-image-wrap {
+    width: 132px;
+    height: 132px;
+    overflow: hidden;
+    border-radius: 15px;
+    background: #f4eee7;
+  }
+
+  .scent-finder-app .product-image {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  .scent-finder-app .product-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .scent-finder-app .product-label {
+    margin-bottom: 5px;
+    color: rgba(18, 18, 18, 0.48);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .scent-finder-app .product-title {
+    margin: 0 0 8px;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .scent-finder-app .product-description {
+    margin: 0 0 10px;
+    color: rgba(18, 18, 18, 0.65);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .scent-finder-app .product-price {
+    margin-bottom: 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .scent-finder-app .product-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    padding: 9px 17px;
+    border-radius: 20px;
+    background: #171717;
+    color: #fff !important;
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 500;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .scent-finder-app .product-link:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+  }
+
+  .scent-finder-app .loading-state {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: rgba(18, 18, 18, 0.6);
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  .scent-finder-app .loading-dots {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .scent-finder-app .loading-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--sf-coral);
+    animation: scentFinderLoadingDot 1s infinite ease-in-out;
+  }
+
+  .scent-finder-app .loading-dots span:nth-child(2) { animation-delay: .15s; }
+  .scent-finder-app .loading-dots span:nth-child(3) { animation-delay: .3s; }
+
+  @keyframes scentFinderLoadingDot {
+    0%, 60%, 100% { opacity: .3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-3px); }
+  }
+
+  .scent-finder-app .chat-controls {
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .scent-finder-app .chat-quick-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    scrollbar-width: none;
+  }
+
+  .scent-finder-app .chat-quick-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scent-finder-app .chat-chip {
+    flex: 0 0 auto;
+    min-height: 37px;
+    padding: 9px 17px;
+    border: 0;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.88);
+    color: #171717;
+    font-size: 11px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .scent-finder-app .chat-chip:hover:not(:disabled) {
+    background: #fff;
+    transform: translateY(-1px);
+  }
+
+  .scent-finder-app .chat-chip.restart {
+    background: var(--sf-coral);
+    color: #fff;
+  }
+
+  .scent-finder-app .chat-input {
+    height: 50px;
+    padding: 0 118px 0 18px;
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  }
+
+  .scent-finder-app .chat-input input {
+    font-size: 14px;
+  }
+
+  .scent-finder-app .ask-button {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    height: 39px;
+    min-width: 104px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 24px;
+    transform: translateY(-50%);
+    background: var(--sf-coral) !important;
+    color: #fff !important;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .scent-finder-app .ask-button:hover:not(:disabled) {
+    background: var(--sf-coral-dark) !important;
+    transform: translateY(-50%) scale(1.01);
+  }
+
+  .scent-finder-app .quota-note {
+    margin: 8px 6px 0;
+    color: rgba(18, 18, 18, 0.45);
+    font-size: 11px;
+  }
+
+  .scent-finder-app .finder-footer {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    z-index: 10;
+    transform: translateX(-50%);
+    color: rgba(18, 18, 18, 0.35);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .scent-finder-app .chat-layout {
+      grid-template-columns: 1fr;
+      gap: 22px;
+      min-height: 0;
+    }
+
+    .scent-finder-app .chat-intro {
+      padding-bottom: 0;
+    }
+
+    .scent-finder-app .chat-thread {
+      max-height: min(46vh, 420px);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .scent-finder-app .finder-step {
+      padding: 78px 18px 72px;
+    }
+
+    .scent-finder-app .ai-icon {
+      width: 50px;
+      height: 50px;
+      margin-bottom: 18px;
+    }
+
+    .scent-finder-app .landing-title { font-size: 32px; }
+    .scent-finder-app .landing-question { font-size: 16px; flex-wrap: wrap; }
+
+    .scent-finder-app .landing-options {
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .scent-finder-app .email-title { font-size: 26px; }
+
+    .scent-finder-app .chat-step {
+      padding: 78px 14px 70px;
+    }
+
+    .scent-finder-app .chat-title { font-size: 28px; }
+    .scent-finder-app .chat-description { font-size: 13px; }
+
+    .scent-finder-app .product-card {
+      grid-template-columns: 96px 1fr;
+      gap: 12px;
+      padding: 10px;
+    }
+
+    .scent-finder-app .product-image-wrap {
+      width: 96px;
+      height: 118px;
+    }
+
+    .scent-finder-app .product-title { font-size: 15px; }
+    .scent-finder-app .ask-button { min-width: 84px; font-size: 10px; }
+    .scent-finder-app .chat-input { padding-right: 94px; }
+    .scent-finder-app .finder-footer { bottom: 16px; font-size: 7px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scent-finder-app *,
+    .scent-finder-app *::before,
+    .scent-finder-app *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+
+<div class="scent-finder-app" id="scent-finder-app-{{ section.id }}">
+  <div class="botanical-background" aria-hidden="true">
+    <span class="leaf leaf-one"></span>
+    <span class="leaf leaf-two"></span>
+    <span class="leaf leaf-three"></span>
+    <span class="leaf leaf-four"></span>
+  </div>
+
+  <div class="scent-finder-content">
+    <section class="finder-step active" id="step-1-{{ section.id }}">
+      <div class="landing-inner">
+        <div class="ai-icon" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z" stroke="#F47769" stroke-width="1.8"/>
+          </svg>
+        </div>
+
+        <h1 class="landing-title">Try our <strong>AI Scent Finder</strong></h1>
+
+        <p class="landing-question">
+          <span>What are <strong>you looking for today?</strong></span>
+          <span class="info-dot" title="Tell us about the mood, occasion, ingredient, or fragrance you're looking for.">i</span>
+        </p>
+
+        <div class="landing-options">
+          <button type="button" class="landing-option" data-query="A scent with amber notes">A scent with amber notes</button>
+          <button type="button" class="landing-option" data-query="A perfume to wear to weekend brunch">A perfume to wear to weekend brunch</button>
+          <button type="button" class="landing-option" data-query="Smell like Tom Ford's Tobacco Vanille">Smell like Tom Ford's Tobacco Vanille</button>
+          <button type="button" class="landing-option" data-query="Perfume that makes me feel sexy">Perfume that makes me feel sexy</button>
+        </div>
+
+        <div class="landing-input">
+          <input
+            type="text"
+            id="landing-query-{{ section.id }}"
+            placeholder="Or type what you are looking for"
+            autocomplete="off"
+            maxlength="500"
+            aria-label="What are you looking for?"
+          >
+          <button type="button" class="coral-arrow" id="landing-submit-{{ section.id }}" aria-label="Continue">→</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="finder-step" id="step-2-{{ section.id }}">
+      <div class="email-inner">
+        <div class="ai-icon" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z" stroke="#F47769" stroke-width="1.8"/>
+          </svg>
+        </div>
+
+        <h2 class="email-title">Let's help you discover <strong>Fragrances tailored to you.</strong></h2>
+        <p class="email-subtitle">Please enter your email to get started.</p>
+
+        <div class="email-input">
+          <input
+            type="email"
+            id="customer-email-{{ section.id }}"
+            placeholder="Enter your email"
+            autocomplete="email"
+            aria-label="Email address"
+            aria-describedby="email-error-{{ section.id }}"
+          >
+          <button type="button" class="coral-arrow" id="email-submit-{{ section.id }}" aria-label="Start fragrance finder">→</button>
+        </div>
+        <p class="field-error" id="email-error-{{ section.id }}" hidden>Please enter a valid email address.</p>
+      </div>
+    </section>
+
+    <section class="finder-step chat-step" id="step-3-{{ section.id }}">
+      <div class="chat-layout">
+        <div class="chat-intro">
+          <div class="ai-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z" stroke="#F47769" stroke-width="1.8"/>
+            </svg>
+          </div>
+
+          <h2 class="chat-title">Let's find your <strong>perfect fragrance.</strong></h2>
+          <p class="chat-description">
+            Tell me about the mood, occasion, ingredients, or fragrances you love and I'll help you find something from our collection.
+          </p>
+          <div class="quota-pills" aria-live="polite">
+            <div class="quota-dots" id="quota-dots-{{ section.id }}"></div>
+            <span id="quota-label-{{ section.id }}">5 searches left</span>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="chat-thread" id="chat-thread-{{ section.id }}" aria-live="polite"></div>
+
+          <div class="chat-controls">
+            <div class="chat-quick-row">
+              <button type="button" class="chat-chip restart" id="restart-button-{{ section.id }}">restart ↻</button>
+              <button type="button" class="chat-chip" data-chat-query="Give me more options">more options</button>
+              <button type="button" class="chat-chip" data-chat-query="Show me unisex options">unisex options</button>
+              <button type="button" class="chat-chip" data-chat-query="Show me Dossier Originals">Dossier Originals</button>
+              <button type="button" class="chat-chip" data-chat-query="I need a fragrance for a party">for party</button>
+              <button type="button" class="chat-chip" data-chat-query="Show me Jo Malone fragrances">Jo Malone</button>
+            </div>
+
+            <div class="chat-input">
+              <input
+                type="text"
+                id="chat-query-{{ section.id }}"
+                placeholder="or ask something else"
+                autocomplete="off"
+                maxlength="500"
+                aria-label="Ask the AI Scent Finder"
+              >
+              <button type="button" class="ask-button" id="chat-submit-{{ section.id }}">ASK</button>
+            </div>
+            <p class="quota-note" id="quota-note-{{ section.id }}">You can ask 5 times each hour.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="finder-footer">Powered by A.I. Fragrance Concierge</footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const sectionId = {{ section.id | json }};
+  const AI_ENDPOINT =
+    {{ section.settings.api_endpoint | json }} ||
+    "https://shopify-ai-gateway.vercel.app/api/recommend";
+  const MAX_ASKS = Number({{ section.settings.max_asks | default: 5 | json }}) || 5;
+  const MONEY_FORMAT = {{ shop.money_format | json }};
+  const QUOTA_KEY = "ai-scent-finder-quota-v1";
+  const WINDOW_MS = 60 * 60 * 1000;
+
+  const app = document.getElementById("scent-finder-app-" + sectionId);
+  const landingQuery = document.getElementById("landing-query-" + sectionId);
+  const landingSubmit = document.getElementById("landing-submit-" + sectionId);
+  const customerEmailInput = document.getElementById("customer-email-" + sectionId);
+  const emailSubmit = document.getElementById("email-submit-" + sectionId);
+  const emailError = document.getElementById("email-error-" + sectionId);
+  const chatQuery = document.getElementById("chat-query-" + sectionId);
+  const chatSubmit = document.getElementById("chat-submit-" + sectionId);
+  const chatThread = document.getElementById("chat-thread-" + sectionId);
+  const restartButton = document.getElementById("restart-button-" + sectionId);
+  const quotaDots = document.getElementById("quota-dots-" + sectionId);
+  const quotaLabel = document.getElementById("quota-label-" + sectionId);
+  const quotaNote = document.getElementById("quota-note-" + sectionId);
+
+  if (!app || !landingQuery || !landingSubmit || !customerEmailInput || !emailSubmit || !chatQuery || !chatSubmit || !chatThread || !restartButton) {
+    return;
+  }
+
+  let selectedQuery = "";
+  let customerEmail = "";
+  let isBusy = false;
+  let limitReached = false;
+  let conversation = [];
+  let previousHandles = [];
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function stripHtml(value) {
+    const box = document.createElement("div");
+    box.innerHTML = value || "";
+    return (box.textContent || box.innerText || "").replace(/\s+/g, " ").trim();
+  }
+
+  function formatMoney(cents) {
+    const amount = (Number(cents) / 100).toFixed(2);
+    if (!MONEY_FORMAT) return "$" + amount;
+    return String(MONEY_FORMAT)
+      .replace(/\{\{\s*amount\s*\}\}/g, amount)
+      .replace(/\{\{\s*amount_no_decimals\s*\}\}/g, String(Math.round(Number(cents) / 100)))
+      .replace(/\{\{\s*amount_with_comma_separator\s*\}\}/g, amount.replace(".", ","));
+  }
+
+  function withHttps(url) {
+    if (!url) return "";
+    if (url.indexOf("//") === 0) return "https:" + url;
+    return url;
+  }
+
+  function getQuota() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(QUOTA_KEY) || "null");
+      if (!parsed || Date.now() > Number(parsed.reset)) {
+        return { count: 0, reset: Date.now() + WINDOW_MS };
+      }
+      return {
+        count: Math.max(0, Number(parsed.count) || 0),
+        reset: Number(parsed.reset)
+      };
+    } catch (err) {
+      return { count: 0, reset: Date.now() + WINDOW_MS };
+    }
+  }
+
+  function saveQuota(quota) {
+    localStorage.setItem(QUOTA_KEY, JSON.stringify(quota));
+  }
+
+  function remainingAsks() {
+    return Math.max(0, MAX_ASKS - getQuota().count);
+  }
+
+  function minutesLeft() {
+    return Math.max(1, Math.ceil((getQuota().reset - Date.now()) / 60000));
+  }
+
+  function markAskUsed() {
+    const quota = getQuota();
+    quota.count += 1;
+    saveQuota(quota);
+    renderQuota();
+  }
+
+  function syncRemaining(remaining) {
+    if (typeof remaining !== "number") return;
+    const quota = getQuota();
+    quota.count = Math.max(quota.count, MAX_ASKS - remaining);
+    saveQuota(quota);
+    renderQuota();
+  }
+
+  function forceLimit() {
+    const quota = getQuota();
+    quota.count = MAX_ASKS;
+    saveQuota(quota);
+    limitReached = true;
+    renderQuota();
+    setChatEnabled(false);
+  }
+
+  function renderQuota() {
+    const left = remainingAsks();
+    limitReached = left <= 0;
+    if (quotaDots) {
+      quotaDots.innerHTML = "";
+      for (let i = 0; i < MAX_ASKS; i += 1) {
+        const dot = document.createElement("span");
+        if (i >= left) dot.className = "used";
+        quotaDots.appendChild(dot);
+      }
+    }
+    if (quotaLabel) {
+      quotaLabel.textContent = left === 1 ? "1 search left" : left + " searches left";
+    }
+    if (quotaNote) {
+      quotaNote.textContent = limitReached
+        ? "Limit reached. Try again in about " + minutesLeft() + " minutes."
+        : "You can ask " + left + " more time" + (left === 1 ? "" : "s") + " this hour.";
+    }
+  }
+
+  function setChatEnabled(enabled) {
+    const allow = enabled && !isBusy && !limitReached;
+    chatQuery.disabled = !allow;
+    chatSubmit.disabled = !allow;
+    app.querySelectorAll(".chat-chip[data-chat-query]").forEach(function (chip) {
+      chip.disabled = !allow;
+    });
+    if (limitReached) {
+      chatQuery.placeholder = "Try again after some time";
+    } else {
+      chatQuery.placeholder = "or ask something else";
+    }
+  }
+
+  function showStep(stepNumber) {
+    app.querySelectorAll(".finder-step").forEach(function (step) {
+      step.classList.remove("active");
+    });
+    const target = document.getElementById("step-" + stepNumber + "-" + sectionId);
+    if (target) target.classList.add("active");
+    window.setTimeout(function () {
+      if (stepNumber === 1) landingQuery.focus();
+      if (stepNumber === 2) customerEmailInput.focus();
+      if (stepNumber === 3 && !limitReached) chatQuery.focus();
+    }, 350);
+  }
+
+  function updateMoodBackground(query, hex) {
+    if (hex && /^#[0-9a-fA-F]{3,8}$/.test(hex)) {
+      app.style.background = "linear-gradient(115deg," + hex + ",#d8e9dc)";
+      return;
+    }
+    const normalized = String(query || "").toLowerCase();
+    if (/fresh|brunch|clean|citrus|summer|green/.test(normalized)) {
+      app.style.background = "linear-gradient(115deg,#d3e8e8,#e0eee0)";
+    } else if (/tobacco|vanilla|warm|amber|cozy/.test(normalized)) {
+      app.style.background = "linear-gradient(115deg,#dfc4a7,#c69b79)";
+    } else if (/sexy|date|night|seductive/.test(normalized)) {
+      app.style.background = "linear-gradient(115deg,#d7c4c1,#bfa9a3)";
+    } else if (/floral|rose|jasmine/.test(normalized)) {
+      app.style.background = "linear-gradient(115deg,#e6d4da,#d8c4cc)";
+    } else {
+      app.style.background = "linear-gradient(115deg,#c9e2e8,#d8e9dc)";
+    }
+  }
+
+  function scrollThread() {
+    chatThread.scrollTop = chatThread.scrollHeight;
+  }
+
+  function appendUserMessage(text) {
+    const row = document.createElement("div");
+    row.className = "chat-row user";
+    row.innerHTML = "<div class='user-bubble'>" + escapeHtml(text) + "</div>";
+    chatThread.appendChild(row);
+    conversation.push({ role: "user", content: text });
+    scrollThread();
+  }
+
+  function appendBotMessage(text, extraHtml) {
+    const row = document.createElement("div");
+    row.className = "chat-row bot";
+    row.innerHTML =
+      "<div class='bot-bubble'><strong>AI Scent Finder</strong><br><br>" +
+      escapeHtml(text) +
+      (extraHtml || "") +
+      "</div>";
+    chatThread.appendChild(row);
+    conversation.push({ role: "assistant", content: text });
+    scrollThread();
+    return row;
+  }
+
+  function appendLimitCard(message) {
+    const row = document.createElement("div");
+    row.className = "chat-row bot";
+    row.innerHTML =
+      "<div class='limit-card'><strong>Please try again after some time</strong>" +
+      escapeHtml(message || "You've used all 5 scent searches for now. This keeps recommendations available for everyone.") +
+      "</div>";
+    chatThread.appendChild(row);
+    scrollThread();
+  }
+
+  function showTyping() {
+    const row = document.createElement("div");
+    row.className = "chat-row bot";
+    row.id = "typing-" + sectionId;
+    row.innerHTML =
+      "<div class='bot-bubble'><div class='loading-state'>Finding your scent<span class='loading-dots'><span></span><span></span><span></span></span></div></div>";
+    chatThread.appendChild(row);
+    scrollThread();
+  }
+
+  function hideTyping() {
+    const typing = document.getElementById("typing-" + sectionId);
+    if (typing) typing.remove();
+  }
+
+  function productCardHtml(product) {
+    const image = withHttps(product.image);
+    const imageHtml = image
+      ? "<div class='product-image-wrap'><img class='product-image' src='" + escapeHtml(image) + "' alt='" + escapeHtml(product.title) + "' loading='lazy'></div>"
+      : "<div class='product-image-wrap'></div>";
+
+    return (
+      "<article class='product-card'>" +
+        imageHtml +
+        "<div class='product-info'>" +
+          "<div class='product-label'>Closest match</div>" +
+          "<h3 class='product-title'>" + escapeHtml(product.title) + "</h3>" +
+          (product.description ? "<p class='product-description'>" + escapeHtml(product.description) + "</p>" : "") +
+          (product.price ? "<div class='product-price'>" + escapeHtml(product.price) + "</div>" : "") +
+          (product.url
+            ? "<a class='product-link' href='" + escapeHtml(product.url) + "'>Discover scent →</a>"
+            : "") +
+        "</div>" +
+      "</article>"
+    );
+  }
+
+  function loadShopifyProduct(handle, fallbackTitle) {
+    return fetch("/products/" + encodeURIComponent(handle) + ".js", {
+      headers: { Accept: "application/json" }
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("product_not_found");
+        return response.json();
+      })
+      .then(function (product) {
+        return {
+          title: product.title || fallbackTitle || "Your fragrance match",
+          description: stripHtml(product.description).slice(0, 140),
+          price: product.price ? formatMoney(product.price) : "",
+          image: product.featured_image || (product.images && product.images[0]) || "",
+          url: product.url || "/products/" + handle
+        };
+      })
+      .catch(function () {
+        return {
+          title: fallbackTitle || "Your fragrance match",
+          description: "",
+          price: "",
+          image: "",
+          url: "/products/" + handle
+        };
+      });
+  }
+
+  function submitEmailToShopify(email) {
+    const formData = new FormData();
+    formData.append("contact[email]", email);
+    formData.append("contact[tags]", "AI Scent Finder");
+    fetch("{{ routes.root_url }}contact", {
+      method: "POST",
+      body: formData,
+      headers: { Accept: "text/html" }
+    }).catch(function () {});
+  }
+
+  function handleLandingSubmit() {
+    const value = landingQuery.value.trim();
+    if (!value) {
+      landingQuery.focus();
+      return;
+    }
+    selectedQuery = value;
+    updateMoodBackground(selectedQuery);
+    showStep(2);
+  }
+
+  function handleEmailSubmit() {
+    const email = customerEmailInput.value.trim();
+    if (!isValidEmail(email)) {
+      emailError.hidden = false;
+      customerEmailInput.focus();
+      return;
+    }
+    emailError.hidden = true;
+    customerEmail = email;
+    submitEmailToShopify(customerEmail);
+    chatThread.innerHTML = "";
+    conversation = [];
+    previousHandles = [];
+    renderQuota();
+    showStep(3);
+    window.setTimeout(function () {
+      askAssistant(selectedQuery);
+    }, 400);
+  }
+
+  function askAssistant(query) {
+    const text = String(query || "").trim();
+    if (!text || isBusy) return;
+
+    if (remainingAsks() <= 0) {
+      forceLimit();
+      appendLimitCard("You've reached the 5 scent searches allowed for now. Please try again after some time.");
+      return;
+    }
+
+    isBusy = true;
+    setChatEnabled(false);
+    appendUserMessage(text);
+    showTyping();
+    updateMoodBackground(text);
+    if (chatQuery) chatQuery.value = "";
+
+    fetch(AI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        text: text,
+        email: customerEmail,
+        history: conversation.slice(0, -1).slice(-6),
+        previous_handles: previousHandles
+      })
+    })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          return { ok: response.ok, status: response.status, data: data || {} };
+        }).catch(function () {
+          return { ok: false, status: response.status, data: {} };
+        });
+      })
+      .then(function (result) {
+        hideTyping();
+        const data = result.data || {};
+
+        if (result.status === 429 || data.error === "rate_limit_exceeded") {
+          forceLimit();
+          appendLimitCard(data.message || "You've reached the 5 scent searches allowed for now. Please try again after some time.");
+          return;
+        }
+
+        if (!result.ok) {
+          appendBotMessage(data.message || "I had trouble checking the collection just now. Please ask me again in a moment.");
+          return;
+        }
+
+        markAskUsed();
+        if (typeof data.remaining === "number") syncRemaining(data.remaining);
+
+        const reply = data.reply || "Tell me a little more about the scent you want and I will match it from our collection.";
+        updateMoodBackground(text, data.bg_color);
+        appendBotMessage(reply);
+
+        if (data.intent === "recommend" && data.handle) {
+          previousHandles.push(data.handle);
+          loadShopifyProduct(data.handle, data.title).then(function (product) {
+            const row = document.createElement("div");
+            row.className = "chat-row bot";
+            row.innerHTML = productCardHtml(product);
+            chatThread.appendChild(row);
+            scrollThread();
+          });
+        }
+      })
+      .catch(function () {
+        hideTyping();
+        appendBotMessage("I could not reach the fragrance concierge just now. Please try again in a moment.");
+      })
+      .finally(function () {
+        isBusy = false;
+        renderQuota();
+        setChatEnabled(true);
+      });
+  }
+
+  landingSubmit.addEventListener("click", handleLandingSubmit);
+  landingQuery.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleLandingSubmit();
+    }
+  });
+
+  app.querySelectorAll(".landing-option").forEach(function (button) {
+    button.addEventListener("click", function () {
+      const query = this.getAttribute("data-query");
+      if (!query) return;
+      selectedQuery = query;
+      landingQuery.value = query;
+      updateMoodBackground(selectedQuery);
+      showStep(2);
+    });
+  });
+
+  emailSubmit.addEventListener("click", handleEmailSubmit);
+  customerEmailInput.addEventListener("input", function () {
+    emailError.hidden = true;
+  });
+  customerEmailInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleEmailSubmit();
+    }
+  });
+
+  function handleChatSubmit() {
+    askAssistant(chatQuery.value.trim());
+  }
+
+  chatSubmit.addEventListener("click", handleChatSubmit);
+  chatQuery.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleChatSubmit();
+    }
+  });
+
+  app.querySelectorAll(".chat-chip[data-chat-query]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      const query = this.getAttribute("data-chat-query");
+      if (query) askAssistant(query);
+    });
+  });
+
+  restartButton.addEventListener("click", function () {
+    selectedQuery = "";
+    customerEmail = "";
+    isBusy = false;
+    conversation = [];
+    previousHandles = [];
+    landingQuery.value = "";
+    customerEmailInput.value = "";
+    chatQuery.value = "";
+    chatThread.innerHTML = "";
+    emailError.hidden = true;
+    app.style.background = "linear-gradient(115deg,#c9e2e8,#d8e9dc)";
+    renderQuota();
+    setChatEnabled(true);
+    showStep(1);
+  });
+
+  renderQuota();
+  setChatEnabled(true);
+  showStep(1);
+})();
+</script>
+
+{% schema %}
+{
+  "name": "AI Scent Finder",
+  "tag": "section",
+  "class": "ai-scent-finder-section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "api_endpoint",
+      "label": "AI API endpoint",
+      "default": "https://shopify-ai-gateway.vercel.app/api/recommend",
+      "info": "Your Vercel gateway URL. Keep this as the production endpoint."
+    },
+    {
+      "type": "range",
+      "id": "max_asks",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "unit": "x",
+      "label": "Max questions per hour",
+      "default": 5
+    }
+  ],
+  "presets": [
+    {
+      "name": "AI Scent Finder"
+    }
+  ]
+}
+{% endschema %}
