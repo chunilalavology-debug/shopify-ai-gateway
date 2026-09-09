@@ -3,14 +3,15 @@ const { OpenAI } = require("openai");
 const MAX_ASKS = 5;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_INPUT_CHARS = 500;
-const CATALOG_FILE_ID =
-  process.env.OPENAI_CATALOG_FILE_ID || "file-P33L55KL75qThWXWk21toi";
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const SHOP_DOMAIN =
+  process.env.SHOPIFY_STORE_DOMAIN || "www.cn1fragrance.com";
+const BLOCKED_HANDLES = new Set(["cn1-shipping-protection"]);
 
 const ipCache = Object.create(null);
 
-const SYSTEM_INSTRUCTIONS = `You are a warm, expert fragrance concierge for an online perfume shop.
-Speak like a real boutique advisor: friendly, concise, and specific. Never sound like a system prompt.
+const SYSTEM_INSTRUCTIONS = `You are the in-store fragrance concierge for CN1 Fragrance, a brand of affordable luxury impression scents and CN1 originals.
+Speak like a real boutique advisor: warm, concise, and specific. Never sound like a system prompt.
 
 Always reply with a single raw JSON object and nothing else. No markdown. No extra text.
 
@@ -18,19 +19,19 @@ JSON schema:
 {
   "reply": "1 to 3 natural sentences shown to the shopper",
   "intent": "recommend" | "clarify" | "chat",
-  "title": "exact product title from the catalog, or empty string",
-  "handle": "exact Shopify product handle from the catalog, or empty string",
+  "title": "exact product title from the live CN1 catalog, or empty string",
+  "handle": "exact Shopify product handle from the live CN1 catalog, or empty string",
   "bg_color": "#hex mood color"
 }
 
 Rules:
-- Use the attached product catalog whenever a fragrance recommendation is possible.
-- Only recommend products that actually exist in the catalog. Never invent titles or handles.
-- If the shopper greets you, makes small talk, or is vague, welcome them and ask what mood, occasion, notes, or similar perfume they want. intent must be "chat". Leave title and handle empty.
-- If the message is unrelated to fragrance, beauty, gifting, or shopping, politely steer back to scent finding. intent must be "chat". Leave title and handle empty.
-- If you need one more detail to choose well, ask a short question. intent must be "clarify".
-- When you can recommend, pick the closest catalog match, explain why it fits in plain language, and set intent to "recommend" with a real title and handle.
-- If they ask for more options, recommend a different product than any previous handles.
+- You may ONLY recommend products from the LIVE CN1 CATALOG provided in the user message.
+- Copy title and handle exactly. Never invent products. Never recommend Diptyque, Guerlain, Maison Margiela, Dossier, or any brand CN1 does not sell.
+- If a shopper names a designer perfume, recommend the closest CN1 impression from the catalog. You may say it is inspired by that scent.
+- If the shopper greets you or is vague, welcome them and ask what mood, occasion, notes, or similar perfume they want. intent must be "chat". Leave title and handle empty.
+- If the message is unrelated to fragrance, beauty, gifting, or shopping, politely steer back to scent finding. intent must be "chat".
+- When you can recommend, pick the closest catalog match, explain why it fits, and set intent to "recommend".
+- If they ask for more options, recommend a different catalog product than previous handles.
 - Keep reply under 60 words.
 - bg_color should match the mood: warm amber #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.`;
 
@@ -145,11 +146,7 @@ function normalizePayload(data) {
 
   const title = String(data.title || data.product_title || "").trim();
   const reply = String(
-    data.reply ||
-      data.explanation ||
-      data.message ||
-      data.description ||
-      ""
+    data.reply || data.explanation || data.message || data.description || ""
   ).trim();
 
   const bg =
@@ -162,7 +159,7 @@ function normalizePayload(data) {
     reply:
       reply ||
       (intent === "recommend"
-        ? "I found a fragrance from our collection that fits what you described."
+        ? "I found a CN1 fragrance that fits what you described."
         : "Tell me a mood, occasion, or a perfume you love and I will match it from our collection."),
     intent,
     title: intent === "recommend" ? title : "",
@@ -171,12 +168,132 @@ function normalizePayload(data) {
   };
 }
 
-function buildUserPrompt({ text, history, previousHandles }) {
-  const lines = [];
+function looksLikeScentQuery(text) {
+  return !/^(hi|hey|hello|yo|sup|thanks|thank you|ok|okay|yes|no)$/i.test(text);
+}
+
+function stripHtml(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function searchStore(query) {
+  const url =
+    `https://${SHOP_DOMAIN}/search/suggest.json?q=${encodeURIComponent(query)}` +
+    "&resources[type]=product&resources[limit]=10";
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  const data = await response.json();
+  const products = data?.resources?.results?.products || [];
+  return products
+    .filter((item) => item && item.handle && !BLOCKED_HANDLES.has(item.handle))
+    .map((item) => ({
+      title: String(item.title || "").trim(),
+      handle: String(item.handle || "").trim(),
+      type: String(item.type || "").trim(),
+      tags: Array.isArray(item.tags)
+        ? item.tags.join(", ")
+        : String(item.tags || ""),
+      summary: stripHtml(item.body).slice(0, 180),
+    }))
+    .filter((item) => item.title && item.handle);
+}
+
+function mergeCatalog(lists) {
+  const seen = new Set();
+  const merged = [];
+  lists.flat().forEach((item) => {
+    if (!item || seen.has(item.handle)) return;
+    seen.add(item.handle);
+    merged.push(item);
+  });
+  return merged.slice(0, 12);
+}
+
+async function loadLiveCatalog(text) {
+  const queries = [text];
+  if (/tom ford/i.test(text) && !/tobacco/i.test(text)) queries.push("tom ford");
+  if (/tobacco|vanille|vanilla/i.test(text)) queries.push("tobacco vanille");
+  if (/amber/i.test(text)) queries.push("amber");
+  if (/unisex/i.test(text)) queries.push("unisex");
+  if (/brunch|fresh|citrus/i.test(text)) queries.push("fresh citrus");
+  if (/party|sexy|date|night/i.test(text)) queries.push("date night");
+
+  const uniqueQueries = [...new Set(queries)].slice(0, 3);
+  const results = await Promise.all(
+    uniqueQueries.map((query) => searchStore(query).catch(() => []))
+  );
+  return mergeCatalog(results);
+}
+
+function formatCatalog(catalog) {
+  if (!catalog.length) return "LIVE CN1 CATALOG: none found for this query.";
+  return [
+    "LIVE CN1 CATALOG (recommend only from this list):",
+    ...catalog.map(
+      (item, index) =>
+        `${index + 1}. ${item.title} | handle: ${item.handle} | ${item.type} | ${item.tags} | ${item.summary}`
+    ),
+  ].join("\n");
+}
+
+function bindToCatalog(payload, catalog) {
+  if (!catalog.length) {
+    if (payload.intent === "recommend") {
+      return {
+        ...payload,
+        intent: "chat",
+        title: "",
+        handle: "",
+        reply:
+          payload.reply ||
+          "Tell me a mood, note, or a perfume you love and I will match it from the CN1 collection.",
+      };
+    }
+    return payload;
+  }
+
+  const handleMatch = catalog.find((item) => item.handle === payload.handle);
+  const titleMatch = catalog.find(
+    (item) =>
+      item.title.toLowerCase() === String(payload.title || "").toLowerCase()
+  );
+  const match = handleMatch || titleMatch;
+  if (match) {
+    return {
+      ...payload,
+      intent: "recommend",
+      title: match.title,
+      handle: match.handle,
+    };
+  }
+
+  if (payload.intent === "chat" || payload.intent === "clarify") {
+    return { ...payload, title: "", handle: "" };
+  }
+
+  const fallback = catalog[0];
+  return {
+    ...payload,
+    intent: "recommend",
+    title: fallback.title,
+    handle: fallback.handle,
+    reply: `From our CN1 collection, ${fallback.title} is the closest match to what you described.`,
+  };
+}
+
+function buildUserPrompt({ text, history, previousHandles, catalog }) {
+  const lines = [formatCatalog(catalog), ""];
   if (history.length) {
     lines.push("Recent conversation:");
     history.forEach((item) => {
-      lines.push(`${item.role === "assistant" ? "Concierge" : "Shopper"}: ${item.content}`);
+      lines.push(
+        `${item.role === "assistant" ? "Concierge" : "Shopper"}: ${item.content}`
+      );
     });
     lines.push("");
   }
@@ -201,31 +318,13 @@ function getOpenAIClient() {
 }
 
 async function viaResponses(openai, prompt) {
-  const content = [
-    { type: "input_file", file_id: CATALOG_FILE_ID },
-    { type: "input_text", text: prompt },
-  ];
-
-  const response = await openai.responses.create({
-    model: MODEL,
-    instructions: SYSTEM_INSTRUCTIONS,
-    input: [{ role: "user", content }],
-    text: { format: { type: "json_object" } },
-    max_output_tokens: 400,
-    temperature: 0.6,
-  });
-
-  return extractJson(response.output_text);
-}
-
-async function viaResponsesWithoutFile(openai, prompt) {
   const response = await openai.responses.create({
     model: MODEL,
     instructions: SYSTEM_INSTRUCTIONS,
     input: prompt,
     text: { format: { type: "json_object" } },
     max_output_tokens: 400,
-    temperature: 0.6,
+    temperature: 0.4,
   });
 
   return extractJson(response.output_text);
@@ -257,7 +356,7 @@ async function viaAssistant(openai, prompt) {
 async function viaChatCompletions(openai, prompt) {
   const completion = await openai.chat.completions.create({
     model: MODEL,
-    temperature: 0.6,
+    temperature: 0.4,
     max_tokens: 400,
     response_format: { type: "json_object" },
     messages: [
@@ -273,7 +372,7 @@ async function recommend(openai, prompt) {
   try {
     return await viaResponses(openai, prompt);
   } catch (err) {
-    console.error("Responses API with catalog file failed:", err?.message || err);
+    console.error("Responses API failed:", err?.message || err);
   }
 
   if (process.env.OPENAI_ASSISTANT_ID) {
@@ -282,12 +381,6 @@ async function recommend(openai, prompt) {
     } catch (err) {
       console.error("Assistants API failed:", err?.message || err);
     }
-  }
-
-  try {
-    return await viaResponsesWithoutFile(openai, prompt);
-  } catch (err) {
-    console.error("Responses API fallback failed:", err?.message || err);
   }
 
   return viaChatCompletions(openai, prompt);
@@ -339,13 +432,17 @@ module.exports = async (req, res) => {
 
   const history = sanitizeHistory(body.history);
   const previousHandles = sanitizeHandles(body.previous_handles);
-  const prompt = buildUserPrompt({ text, history, previousHandles });
+  const catalog = looksLikeScentQuery(text) ? await loadLiveCatalog(text) : [];
+  const prompt = buildUserPrompt({ text, history, previousHandles, catalog });
 
   quota.count += 1;
 
   try {
     const openai = getOpenAIClient();
-    const payload = normalizePayload(await recommend(openai, prompt));
+    const payload = bindToCatalog(
+      normalizePayload(await recommend(openai, prompt)),
+      catalog
+    );
     return res.status(200).json({
       ...payload,
       remaining: Math.max(0, MAX_ASKS - quota.count),

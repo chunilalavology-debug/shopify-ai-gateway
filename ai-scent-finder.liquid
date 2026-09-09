@@ -844,9 +844,9 @@
               <button type="button" class="chat-chip restart" id="restart-button-{{ section.id }}">restart ↻</button>
               <button type="button" class="chat-chip" data-chat-query="Give me more options">more options</button>
               <button type="button" class="chat-chip" data-chat-query="Show me unisex options">unisex options</button>
-              <button type="button" class="chat-chip" data-chat-query="Show me Dossier Originals">Dossier Originals</button>
+              <button type="button" class="chat-chip" data-chat-query="Show me CN1 Originals">CN1 Originals</button>
               <button type="button" class="chat-chip" data-chat-query="I need a fragrance for a party">for party</button>
-              <button type="button" class="chat-chip" data-chat-query="Show me Jo Malone fragrances">Jo Malone</button>
+              <button type="button" class="chat-chip" data-chat-query="A warm vanilla scent">vanilla</button>
             </div>
 
             <div class="chat-input">
@@ -877,7 +877,7 @@
   const sectionId = {{ section.id | json }};
   const AI_ENDPOINT =
     {{ section.settings.api_endpoint | json }} ||
-    "https://shopify-ai-gateway.vercel.app/api/recommend";
+    "https://shopify-ai-gateway-rosy.vercel.app/api/recommend";
   const MAX_ASKS = Number({{ section.settings.max_asks | default: 5 | json }}) || 5;
   const MONEY_FORMAT = {{ shop.money_format | json }};
   const QUOTA_KEY = "ai-scent-finder-quota-v1";
@@ -1368,7 +1368,7 @@
       "type": "text",
       "id": "api_endpoint",
       "label": "AI API endpoint",
-      "default": "https://shopify-ai-gateway.vercel.app/api/recommend",
+      "default": "https://shopify-ai-gateway-rosy.vercel.app/api/recommend",
       "info": "Your Vercel gateway URL. Keep this as the production endpoint."
     },
     {
