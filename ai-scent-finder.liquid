@@ -1330,18 +1330,33 @@
   }
 
   function submitEmailToShopify(email) {
-    // Post to Shopify's newsletter endpoint so the shopper is stored as a
-    // marketing-subscribed customer (not just a contact message).
-    const formData = new FormData();
-    formData.append("form_type", "customer");
-    formData.append("utf8", "\u2713");
-    formData.append("contact[email]", email);
-    formData.append("contact[tags]", "AI Scent Finder, email-marketing-consent");
-    fetch("{{ routes.root_url }}contact#newsletter", {
+    // Shopify customer/newsletter form — must include accepts_marketing
+    // or many stores will not create a marketing customer record.
+    const params = new URLSearchParams();
+    params.append("form_type", "customer");
+    params.append("utf8", "\u2713");
+    params.append("contact[email]", email);
+    params.append("contact[tags]", "AI Scent Finder, email-marketing-consent, newsletter");
+    params.append("contact[accepts_marketing]", "true");
+
+    fetch("/contact", {
       method: "POST",
-      body: formData,
-      headers: { Accept: "text/html" }
-    }).catch(function () {});
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        Accept: "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: params.toString(),
+      credentials: "same-origin"
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          console.warn("AI Scent Finder newsletter signup HTTP", response.status);
+        }
+      })
+      .catch(function (err) {
+        console.warn("AI Scent Finder newsletter signup failed", err);
+      });
   }
 
   function handleLandingSubmit() {

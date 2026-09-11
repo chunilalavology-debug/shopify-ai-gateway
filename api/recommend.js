@@ -848,6 +848,103 @@ function parsePublishedCoupons(raw) {
   return coupons;
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+/**
+ * Create/update a Shopify customer from Step 2 email via Admin API.
+ * Requires write_customers scope. Safe no-op if auth/scope is missing.
+ */
+async function ensureShopifyCustomer(email) {
+  const cleaned = String(email || "").trim().toLowerCase();
+  if (!isValidEmail(cleaned) || !hasShopifyAdminAuth()) {
+    return { ok: false, reason: "skipped" };
+  }
+
+  const tags = ["AI Scent Finder", "email-marketing-consent", "newsletter"];
+
+  try {
+    const existing = await shopifyAdminGraphql(
+      `query CustomerByEmail($q: String!) {
+        customers(first: 1, query: $q) {
+          nodes { id email tags }
+        }
+      }`,
+      { q: `email:${cleaned}` }
+    );
+
+    const found = existing?.customers?.nodes?.[0];
+    if (found?.id) {
+      const mergedTags = Array.from(
+        new Set([...(found.tags || []), ...tags].map((tag) => String(tag).trim()).filter(Boolean))
+      );
+      const updated = await shopifyAdminGraphql(
+        `mutation customerUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id email tags }
+            userErrors { field message }
+          }
+        }`,
+        {
+          input: {
+            id: found.id,
+            tags: mergedTags,
+            emailMarketingConsent: {
+              marketingState: "SUBSCRIBED",
+              marketingOptInLevel: "SINGLE_OPT_IN",
+            },
+          },
+        }
+      );
+      const errors = updated?.customerUpdate?.userErrors || [];
+      if (errors.length) {
+        console.warn("customerUpdate errors:", errors);
+        return { ok: false, reason: "update_errors", errors };
+      }
+      return {
+        ok: true,
+        action: "updated",
+        id: updated?.customerUpdate?.customer?.id || found.id,
+      };
+    }
+
+    const created = await shopifyAdminGraphql(
+      `mutation customerCreate($input: CustomerInput!) {
+        customerCreate(input: $input) {
+          customer { id email tags }
+          userErrors { field message }
+        }
+      }`,
+      {
+        input: {
+          email: cleaned,
+          tags,
+          emailMarketingConsent: {
+            marketingState: "SUBSCRIBED",
+            marketingOptInLevel: "SINGLE_OPT_IN",
+          },
+        },
+      }
+    );
+
+    const errors = created?.customerCreate?.userErrors || [];
+    if (errors.length) {
+      console.warn("customerCreate errors:", errors);
+      return { ok: false, reason: "create_errors", errors };
+    }
+
+    return {
+      ok: true,
+      action: "created",
+      id: created?.customerCreate?.customer?.id || null,
+    };
+  } catch (err) {
+    console.error("ensureShopifyCustomer failed:", err?.message || err);
+    return { ok: false, reason: "exception", error: String(err?.message || err) };
+  }
+}
+
 async function loadPublishedCoupons() {
   const fromEnv = parsePublishedCoupons(process.env.SHOPIFY_DISCOUNT_INFO);
   if (!hasShopifyAdminAuth() || !getShopifyShop()) return fromEnv;
@@ -1687,6 +1784,18 @@ module.exports = async (req, res) => {
 
   const history = sanitizeHistory(body.history);
   const previousHandles = sanitizeHandles(body.previous_handles);
+  const customerEmail = String(body.email || "").trim().toLowerCase();
+
+  // Persist Step 2 email as a Shopify customer (Admin API). Non-blocking for chat UX.
+  if (customerEmail) {
+    ensureShopifyCustomer(customerEmail).then((result) => {
+      if (!result?.ok) {
+        console.warn("Shopify customer sync skipped/failed:", result);
+      } else {
+        console.log("Shopify customer sync:", result.action, result.id);
+      }
+    });
+  }
 
   sessionQuota.count += 1;
   if (ipQuota !== sessionQuota) ipQuota.count += 1;
@@ -1800,4 +1909,6 @@ module.exports._test = {
   metafieldMap,
   pickMetafield,
   mapAdminProduct,
+  ensureShopifyCustomer,
+  isValidEmail,
 };
