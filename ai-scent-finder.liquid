@@ -1,6 +1,4 @@
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 
 <style>
   .scent-finder-app,
@@ -486,6 +484,23 @@
 
   .scent-finder-app .field-error[hidden] {
     display: none !important;
+  }
+
+  .scent-finder-app .email-consent {
+    margin: 14px 6px 0;
+    color: rgba(27, 23, 20, 0.42);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .scent-finder-app .email-consent a {
+    color: var(--sf-coral);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .scent-finder-app .email-consent a:hover {
+    color: var(--sf-coral-dark);
   }
 
   .scent-finder-app .chat-step {
@@ -1021,6 +1036,7 @@
           <button type="button" class="coral-arrow" id="email-submit-{{ section.id }}" aria-label="Start fragrance finder">→</button>
         </div>
         <p class="field-error" id="email-error-{{ section.id }}" hidden>Please enter a valid email address.</p>
+        <p class="email-consent">By submitting your email you agree to receive personalised fragrance recommendations and marketing emails from us. View our <a href="/policies/privacy-policy" target="_blank">Privacy Policy</a> and <a href="/policies/terms-of-service" target="_blank">Terms &amp; Conditions</a>.</p>
       </div>
     </section>
 
@@ -1394,10 +1410,14 @@
   }
 
   function submitEmailToShopify(email) {
+    // Post to Shopify's newsletter endpoint so the shopper is stored as a
+    // marketing-subscribed customer (not just a contact message).
     const formData = new FormData();
+    formData.append("form_type", "customer");
+    formData.append("utf8", "\u2713");
     formData.append("contact[email]", email);
-    formData.append("contact[tags]", "AI Scent Finder");
-    fetch("{{ routes.root_url }}contact", {
+    formData.append("contact[tags]", "AI Scent Finder, email-marketing-consent");
+    fetch("{{ routes.root_url }}contact#newsletter", {
       method: "POST",
       body: formData,
       headers: { Accept: "text/html" }
