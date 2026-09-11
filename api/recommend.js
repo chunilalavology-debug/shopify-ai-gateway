@@ -1,12 +1,18 @@
 const { OpenAI } = require("openai");
 
 const MAX_ASKS = 5;
+const MAX_ASKS_PER_IP = 30;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_INPUT_CHARS = 500;
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const SHOP_DOMAIN =
   process.env.SHOPIFY_STORE_DOMAIN || "www.cn1fragrance.com";
 const BLOCKED_HANDLES = new Set(["cn1-shipping-protection"]);
+
+// In-memory catalog cache — refreshed every 5 minutes so new/deleted products
+// are reflected quickly without hammering the Shopify storefront on every call.
+const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let catalogCache = { products: null, expiresAt: 0 };
 
 const ipCache = Object.create(null);
 
@@ -60,13 +66,19 @@ function pruneCache(now) {
   }
 }
 
-function getQuota(ip) {
+function sanitizeSession(value) {
+  return String(value || "")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 64);
+}
+
+function getQuota(key) {
   const now = Date.now();
   pruneCache(now);
-  if (!ipCache[ip] || now > ipCache[ip].reset) {
-    ipCache[ip] = { count: 0, reset: now + WINDOW_MS };
+  if (!ipCache[key] || now > ipCache[key].reset) {
+    ipCache[key] = { count: 0, reset: now + WINDOW_MS };
   }
-  return ipCache[ip];
+  return ipCache[key];
 }
 
 function readBody(req) {
@@ -179,64 +191,101 @@ function stripHtml(value) {
     .trim();
 }
 
-async function searchStore(query) {
+/**
+ * Fetch a single page of products from the Shopify storefront /products.json
+ * endpoint. This is a public, unauthenticated endpoint available on all stores.
+ *
+ * @param {number} page  1-based page number
+ * @returns {Promise<Array>}
+ */
+async function fetchProductPage(page) {
   const url =
-    `https://${SHOP_DOMAIN}/search/suggest.json?q=${encodeURIComponent(query)}` +
-    "&resources[type]=product&resources[limit]=10";
+    `https://${SHOP_DOMAIN}/products.json` +
+    `?limit=250&page=${page}&fields=title,handle,product_type,tags,body_html,vendor`;
+
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
   });
+
   if (!response.ok) return [];
+
   const data = await response.json();
-  const products = data?.resources?.results?.products || [];
+  const products = data?.products || [];
+
   return products
-    .filter((item) => item && item.handle && !BLOCKED_HANDLES.has(item.handle))
+    .filter(
+      (item) =>
+        item &&
+        item.handle &&
+        item.title &&
+        !BLOCKED_HANDLES.has(item.handle)
+    )
     .map((item) => ({
       title: String(item.title || "").trim(),
       handle: String(item.handle || "").trim(),
-      type: String(item.type || "").trim(),
+      type: String(item.product_type || "").trim(),
       tags: Array.isArray(item.tags)
         ? item.tags.join(", ")
         : String(item.tags || ""),
-      summary: stripHtml(item.body).slice(0, 180),
-    }))
-    .filter((item) => item.title && item.handle);
+      vendor: String(item.vendor || "").trim(),
+      summary: stripHtml(item.body_html || "").slice(0, 180),
+    }));
 }
 
-function mergeCatalog(lists) {
+/**
+ * Load the complete live product catalog from Shopify by paging through
+ * /products.json (max 250 per page, up to 3 pages = 750 products).
+ *
+ * Results are cached in-memory for CATALOG_CACHE_TTL_MS (5 minutes) so that:
+ *  - New products appear within 5 minutes
+ *  - Deleted products disappear within 5 minutes
+ *  - Every Vercel function instance has a fresh catalog without hammering Shopify
+ *
+ * Set CATALOG_CACHE_TTL_MS to 0 to disable caching for instant propagation.
+ */
+async function loadFullCatalog() {
+  const now = Date.now();
+
+  // Return cached catalog if still fresh
+  if (catalogCache.products && now < catalogCache.expiresAt) {
+    return catalogCache.products;
+  }
+
+  const allProducts = [];
+  const MAX_PAGES = 3; // up to 750 products
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const batch = await fetchProductPage(page);
+    allProducts.push(...batch);
+    // If we got fewer than 250, there are no more pages
+    if (batch.length < 250) break;
+  }
+
+  // De-duplicate by handle (safety net)
   const seen = new Set();
-  const merged = [];
-  lists.flat().forEach((item) => {
-    if (!item || seen.has(item.handle)) return;
-    seen.add(item.handle);
-    merged.push(item);
+  const unique = allProducts.filter((p) => {
+    if (seen.has(p.handle)) return false;
+    seen.add(p.handle);
+    return true;
   });
-  return merged.slice(0, 12);
-}
 
-async function loadLiveCatalog(text) {
-  const queries = [text];
-  if (/tom ford/i.test(text) && !/tobacco/i.test(text)) queries.push("tom ford");
-  if (/tobacco|vanille|vanilla/i.test(text)) queries.push("tobacco vanille");
-  if (/amber/i.test(text)) queries.push("amber");
-  if (/unisex/i.test(text)) queries.push("unisex");
-  if (/brunch|fresh|citrus/i.test(text)) queries.push("fresh citrus");
-  if (/party|sexy|date|night/i.test(text)) queries.push("date night");
+  // Update cache
+  catalogCache = {
+    products: unique,
+    expiresAt: now + CATALOG_CACHE_TTL_MS,
+  };
 
-  const uniqueQueries = [...new Set(queries)].slice(0, 3);
-  const results = await Promise.all(
-    uniqueQueries.map((query) => searchStore(query).catch(() => []))
-  );
-  return mergeCatalog(results);
+  console.log(`[catalog] Loaded ${unique.length} products from Shopify (page 1–${Math.ceil(unique.length / 250)})`);
+  return unique;
 }
 
 function formatCatalog(catalog) {
-  if (!catalog.length) return "LIVE CN1 CATALOG: none found for this query.";
+  if (!catalog.length) return "LIVE CN1 CATALOG: no products available.";
   return [
     "LIVE CN1 CATALOG (recommend only from this list):",
     ...catalog.map(
       (item, index) =>
-        `${index + 1}. ${item.title} | handle: ${item.handle} | ${item.type} | ${item.tags} | ${item.summary}`
+        `${index + 1}. ${item.title} | handle: ${item.handle} | ${item.type} | ${item.vendor} | ${item.tags} | ${item.summary}`
     ),
   ].join("\n");
 }
@@ -407,19 +456,6 @@ module.exports = async (req, res) => {
   }
 
   const ip = getClientIp(req);
-  const quota = getQuota(ip);
-
-  if (quota.count >= MAX_ASKS) {
-    const retryMins = Math.max(1, Math.ceil((quota.reset - Date.now()) / 60000));
-    return res.status(429).json({
-      error: "rate_limit_exceeded",
-      remaining: 0,
-      retry_minutes: retryMins,
-      message:
-        "You've reached the 5 scent searches allowed for now. Please try again after some time.",
-    });
-  }
-
   const body = readBody(req);
   const text = cleanText(body.text);
 
@@ -430,12 +466,36 @@ module.exports = async (req, res) => {
     });
   }
 
+  const sessionId = sanitizeSession(body.session_id);
+  const sessionQuota = getQuota(sessionId ? "s:" + sessionId : "ip:" + ip);
+  const ipQuota = getQuota("ip:" + ip);
+
+  if (sessionQuota.count >= MAX_ASKS || ipQuota.count >= MAX_ASKS_PER_IP) {
+    const resetAt = sessionQuota.count >= MAX_ASKS ? sessionQuota.reset : ipQuota.reset;
+    const retryMins = Math.max(1, Math.ceil((resetAt - Date.now()) / 60000));
+    return res.status(429).json({
+      error: "rate_limit_exceeded",
+      remaining: 0,
+      retry_minutes: retryMins,
+      message:
+        "You've reached the 5 scent searches allowed for now. Please try again after some time.",
+    });
+  }
+
   const history = sanitizeHistory(body.history);
   const previousHandles = sanitizeHandles(body.previous_handles);
-  const catalog = looksLikeScentQuery(text) ? await loadLiveCatalog(text) : [];
+
+  // Load the complete live Shopify product catalog (cached for 5 min).
+  // For greeting/vague messages we still load the catalog so OpenAI knows what
+  // products exist and can make informed clarifying questions.
+  const catalog = looksLikeScentQuery(text)
+    ? await loadFullCatalog().catch(() => [])
+    : [];
+
   const prompt = buildUserPrompt({ text, history, previousHandles, catalog });
 
-  quota.count += 1;
+  sessionQuota.count += 1;
+  if (ipQuota !== sessionQuota) ipQuota.count += 1;
 
   try {
     const openai = getOpenAIClient();
@@ -445,10 +505,13 @@ module.exports = async (req, res) => {
     );
     return res.status(200).json({
       ...payload,
-      remaining: Math.max(0, MAX_ASKS - quota.count),
+      remaining: Math.max(0, MAX_ASKS - sessionQuota.count),
     });
   } catch (err) {
-    quota.count = Math.max(0, quota.count - 1);
+    sessionQuota.count = Math.max(0, sessionQuota.count - 1);
+    if (ipQuota !== sessionQuota) {
+      ipQuota.count = Math.max(0, ipQuota.count - 1);
+    }
     console.error("AI Scent Finder gateway error:", err);
     const missingKey = err?.code === "missing_openai_key";
     return res.status(500).json({
