@@ -162,80 +162,6 @@
     align-items: center;
   }
 
-  .scent-finder-app .sf-progress {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: min(100% - 40px, 520px);
-    margin: 28px auto 0 !important;
-    padding: 0 !important;
-    list-style: none !important;
-  }
-
-  .scent-finder-app .sf-progress-step {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: rgba(26, 16, 9, 0.38);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .scent-finder-app .sf-progress-step span {
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: rgba(239, 73, 50, 0.07);
-    border: 1px solid rgba(239, 73, 50, 0.2);
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(26, 16, 9, 0.45);
-    transition: background 0.3s ease, color 0.3s ease, transform 0.3s ease;
-  }
-
-  .scent-finder-app .sf-progress-step.is-active {
-    color: var(--sf-ink);
-  }
-
-  .scent-finder-app .sf-progress-step.is-active span,
-  .scent-finder-app .sf-progress-step.is-complete span {
-    background: var(--sf-coral);
-    color: #fff;
-    border-color: transparent;
-    transform: scale(1.05);
-  }
-
-  .scent-finder-app .sf-progress-step.is-complete {
-    color: rgba(26, 16, 9, 0.5);
-  }
-
-  .scent-finder-app .sf-progress-line {
-    flex: 1;
-    height: 2px;
-    max-width: 72px;
-    border-radius: 2px;
-    background: rgba(239, 73, 50, 0.12);
-    overflow: hidden;
-  }
-
-  .scent-finder-app .sf-progress-line em {
-    display: block;
-    width: 0;
-    height: 100%;
-    background: linear-gradient(90deg, var(--sf-coral), #f0a08e);
-    transition: width 0.45s ease;
-  }
-
-  .scent-finder-app .sf-progress-line.is-filled em {
-    width: 100%;
-  }
-
   .scent-finder-app .finder-step {
     width: 100%;
     min-height: calc(100svh - var(--header-offset) - 64px);
@@ -915,19 +841,6 @@
   }
 
   @media (max-width: 600px) {
-    .scent-finder-app .sf-progress {
-      width: calc(100% - 28px);
-      margin-top: 18px;
-      gap: 6px;
-    }
-    .scent-finder-app .sf-progress-step {
-      font-size: 0;
-      gap: 0;
-    }
-    .scent-finder-app .sf-progress-step span {
-      width: 26px;
-      height: 26px;
-    }
     .scent-finder-app .finder-step {
       padding: 20px 14px 72px;
     }
@@ -977,14 +890,6 @@
   </div>
 
   <div class="scent-finder-content">
-    <ol class="sf-progress" aria-label="Scent finder steps">
-      <li class="sf-progress-step is-active" data-step="1"><span>1</span> Scent</li>
-      <li class="sf-progress-line" data-line="1" aria-hidden="true"><em></em></li>
-      <li class="sf-progress-step" data-step="2"><span>2</span> Email</li>
-      <li class="sf-progress-line" data-line="2" aria-hidden="true"><em></em></li>
-      <li class="sf-progress-step" data-step="3"><span>3</span> Match</li>
-    </ol>
-
     <section class="finder-step active" id="step-1-{{ section.id }}">
       <div class="sf-card landing-inner">
         <div class="ai-icon" aria-hidden="true">
@@ -1013,7 +918,7 @@
             id="landing-query-{{ section.id }}"
             placeholder="{{ section.settings.step1_placeholder | default: 'Or type what you are looking for' | escape }}"
             autocomplete="off"
-            maxlength="500"
+            maxlength="5000"
             aria-label="What are you looking for?"
           >
           <button type="button" class="coral-arrow" id="landing-submit-{{ section.id }}" aria-label="Continue">→</button>
@@ -1063,7 +968,7 @@
           </p>
           <div class="quota-pills" aria-live="polite">
             <div class="quota-dots" id="quota-dots-{{ section.id }}"></div>
-            <span id="quota-label-{{ section.id }}">5 searches left</span>
+            <span id="quota-label-{{ section.id }}">20 messages left</span>
           </div>
         </div>
 
@@ -1087,13 +992,13 @@
                   id="chat-query-{{ section.id }}"
                   placeholder="Ask about a scent, mood, or occasion"
                   autocomplete="off"
-                  maxlength="500"
+                  maxlength="5000"
                   aria-label="Ask the AI Scent Finder"
                 >
               </div>
               <button type="button" class="ask-button" id="chat-submit-{{ section.id }}">Ask</button>
             </div>
-            <p class="quota-note" id="quota-note-{{ section.id }}">You can ask 5 times each hour.</p>
+            <p class="quota-note" id="quota-note-{{ section.id }}">You can send 20 free messages each day.</p>
           </div>
         </div>
       </div>
@@ -1111,11 +1016,15 @@
   const AI_ENDPOINT =
     {{ section.settings.api_endpoint | json }} ||
     "https://shopify-ai-gateway-rosy.vercel.app/api/recommend";
-  const MAX_ASKS = Number({{ section.settings.max_asks | default: 5 | json }}) || 5;
+  const MAX_ASKS = Number({{ section.settings.max_asks | default: 20 | json }}) || 20;
+  const MAX_INPUT_WORDS = 800;
+  const HISTORY_LIMIT = 8;
   const MONEY_FORMAT = {{ shop.money_format | json }};
-  const QUOTA_KEY = "ai-scent-finder-quota-v2";
+  const QUOTA_KEY = "ai-scent-finder-quota-v3";
   const SESSION_KEY = "ai-scent-finder-session-v1";
-  const WINDOW_MS = 60 * 60 * 1000;
+  const WINDOW_MS = 24 * 60 * 60 * 1000;
+  const DAILY_LIMIT_MESSAGE =
+    "🌸 You've reached your free chat limit for today. Please come back tomorrow and we'll be happy to help! 💜";
 
   const app = document.getElementById("scent-finder-app-" + sectionId);
   const landingQuery = document.getElementById("landing-query-" + sectionId);
@@ -1199,8 +1108,18 @@
     return Math.max(0, MAX_ASKS - getQuota().count);
   }
 
-  function minutesLeft() {
-    return Math.max(1, Math.ceil((getQuota().reset - Date.now()) / 60000));
+  function countWords(value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).length;
+  }
+
+  function syncRemainingFromServer(remaining) {
+    if (typeof remaining !== "number" || !isFinite(remaining)) return;
+    const quota = getQuota();
+    quota.count = Math.max(0, Math.min(MAX_ASKS, MAX_ASKS - Math.max(0, remaining)));
+    saveQuota(quota);
+    renderQuota();
   }
 
   function getSessionId() {
@@ -1239,19 +1158,22 @@
     limitReached = left <= 0;
     if (quotaDots) {
       quotaDots.innerHTML = "";
-      for (let i = 0; i < MAX_ASKS; i += 1) {
+      // Keep the existing pill design, but avoid drawing 20+ dots
+      const visualDots = Math.min(MAX_ASKS, 10);
+      const usedVisual = visualDots - Math.ceil((left / MAX_ASKS) * visualDots);
+      for (let i = 0; i < visualDots; i += 1) {
         const dot = document.createElement("span");
-        if (i >= left) dot.className = "used";
+        if (i < usedVisual) dot.className = "used";
         quotaDots.appendChild(dot);
       }
     }
     if (quotaLabel) {
-      quotaLabel.textContent = left === 1 ? "1 search left" : left + " searches left";
+      quotaLabel.textContent = left === 1 ? "1 message left today" : left + " messages left today";
     }
     if (quotaNote) {
       quotaNote.textContent = limitReached
-        ? "Limit reached. Try again in about " + minutesLeft() + " minutes."
-        : "You can ask " + left + " more time" + (left === 1 ? "" : "s") + " this hour. The first match counts as 1.";
+        ? "Daily free limit reached. Please come back tomorrow."
+        : "You have " + left + " free message" + (left === 1 ? "" : "s") + " left today.";
     }
   }
 
@@ -1263,7 +1185,7 @@
       chip.disabled = !allow;
     });
     if (limitReached) {
-      chatQuery.placeholder = "Limit reached for this hour";
+      chatQuery.placeholder = "Daily free limit reached — come back tomorrow";
     } else {
       chatQuery.placeholder = "Ask about a scent, mood, or occasion";
     }
@@ -1275,16 +1197,6 @@
     });
     const target = document.getElementById("step-" + stepNumber + "-" + sectionId);
     if (target) target.classList.add("active");
-
-    app.querySelectorAll(".sf-progress-step").forEach(function (el) {
-      const n = Number(el.getAttribute("data-step"));
-      el.classList.toggle("is-active", n === stepNumber);
-      el.classList.toggle("is-complete", n < stepNumber);
-    });
-    app.querySelectorAll(".sf-progress-line").forEach(function (el) {
-      const n = Number(el.getAttribute("data-line"));
-      el.classList.toggle("is-filled", n < stepNumber);
-    });
 
     window.setTimeout(function () {
       if (stepNumber === 1) landingQuery.focus();
@@ -1345,8 +1257,8 @@
     const row = document.createElement("div");
     row.className = "chat-row bot";
     row.innerHTML =
-      "<div class='limit-card'><strong>Please try again after some time</strong>" +
-      escapeHtml(message || "You've used all 5 scent searches for now. This keeps recommendations available for everyone.") +
+      "<div class='limit-card'><strong>Daily free limit reached</strong>" +
+      escapeHtml(message || DAILY_LIMIT_MESSAGE) +
       "</div>";
     chatThread.appendChild(row);
     scrollThread();
@@ -1469,7 +1381,12 @@
 
     if (remainingAsks() <= 0) {
       forceLimit();
-      appendLimitCard("You've reached the 5 scent searches allowed for now. Please try again after some time.");
+      appendLimitCard(DAILY_LIMIT_MESSAGE);
+      return;
+    }
+
+    if (countWords(text) > MAX_INPUT_WORDS) {
+      appendBotMessage("Please keep your message under 800 words so I can help you find a scent faster.");
       return;
     }
 
@@ -1490,7 +1407,7 @@
         text: text,
         email: customerEmail,
         session_id: getSessionId(),
-        history: conversation.slice(0, -1).slice(-6),
+        history: conversation.slice(0, -1).slice(-HISTORY_LIMIT),
         previous_handles: previousHandles
       })
     })
@@ -1506,8 +1423,14 @@
         const data = result.data || {};
 
         if (result.status === 429 || data.error === "rate_limit_exceeded") {
+          syncRemainingFromServer(0);
           forceLimit();
-          appendLimitCard(data.message || "You've reached the 5 scent searches allowed for now. Please try again after some time.");
+          appendLimitCard(data.message || DAILY_LIMIT_MESSAGE);
+          return;
+        }
+
+        if (data.error === "message_too_long") {
+          appendBotMessage(data.message || "Please keep your message under 800 words so I can help you find a scent faster.");
           return;
         }
 
@@ -1517,6 +1440,9 @@
         }
 
         markAskUsed();
+        if (typeof data.remaining === "number") {
+          syncRemainingFromServer(data.remaining);
+        }
 
         const reply = data.reply || "Tell me a little more about the scent you want and I will match it from our collection.";
         updateMoodBackground(text, data.bg_color);
@@ -1747,11 +1673,11 @@
       "type": "range",
       "id": "max_asks",
       "min": 1,
-      "max": 10,
+      "max": 20,
       "step": 1,
       "unit": "x",
-      "label": "Max questions per hour",
-      "default": 5
+      "label": "Max free messages per day",
+      "default": 20
     }
   ],
   "presets": [

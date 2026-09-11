@@ -1,9 +1,16 @@
 const { OpenAI } = require("openai");
 
-const MAX_ASKS = 5;
-const MAX_ASKS_PER_IP = 30;
-const WINDOW_MS = 60 * 60 * 1000;
-const MAX_INPUT_CHARS = 500;
+// Cost-control limits (enforced on the server)
+const MAX_ASKS = 20; // free messages per user/session per day
+const MAX_ASKS_PER_IP = 60; // hard daily ceiling per IP (anti-bypass)
+const WINDOW_MS = 24 * 60 * 60 * 1000; // rolling 24-hour window
+const MAX_INPUT_WORDS = 800;
+const MAX_INPUT_CHARS = 5000; // safety cap (~800 words)
+const HISTORY_LIMIT = 8; // keep recent turns only (within 6–10)
+const HISTORY_CONTENT_CHARS = 280;
+const MAX_OUTPUT_TOKENS = 400; // within 300–500 target
+const DAILY_LIMIT_MESSAGE =
+  "🌸 You've reached your free chat limit for today. Please come back tomorrow and we'll be happy to help! 💜";
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const SHOP_DOMAIN =
   process.env.SHOPIFY_STORE_DOMAIN || "www.cn1fragrance.com";
@@ -94,6 +101,12 @@ function readBody(req) {
   return body;
 }
 
+function countWords(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
 function cleanText(value) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -117,10 +130,13 @@ function sanitizeHandles(list) {
 function sanitizeHistory(list) {
   if (!Array.isArray(list)) return [];
   return list
-    .slice(-6)
+    .slice(-HISTORY_LIMIT)
     .map((item) => {
       const role = item && item.role === "assistant" ? "assistant" : "user";
-      const content = cleanText(item && item.content).slice(0, 280);
+      const content = cleanText(item && item.content).slice(
+        0,
+        HISTORY_CONTENT_CHARS
+      );
       return content ? { role, content } : null;
     })
     .filter(Boolean);
@@ -372,7 +388,7 @@ async function viaResponses(openai, prompt) {
     instructions: SYSTEM_INSTRUCTIONS,
     input: prompt,
     text: { format: { type: "json_object" } },
-    max_output_tokens: 400,
+    max_output_tokens: MAX_OUTPUT_TOKENS,
     temperature: 0.4,
   });
 
@@ -391,6 +407,7 @@ async function viaAssistant(openai, prompt) {
 
   const run = await openai.beta.threads.runs.createAndPoll(thread.id, {
     assistant_id: assistantId,
+    max_completion_tokens: MAX_OUTPUT_TOKENS,
   });
 
   if (run.status !== "completed") {
@@ -406,7 +423,7 @@ async function viaChatCompletions(openai, prompt) {
   const completion = await openai.chat.completions.create({
     model: MODEL,
     temperature: 0.4,
-    max_tokens: 400,
+    max_tokens: MAX_OUTPUT_TOKENS,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_INSTRUCTIONS },
@@ -447,7 +464,10 @@ module.exports = async (req, res) => {
       ok: true,
       service: "ai-scent-finder",
       max_asks: MAX_ASKS,
-      window_minutes: 60,
+      window_hours: 24,
+      max_input_words: MAX_INPUT_WORDS,
+      history_limit: HISTORY_LIMIT,
+      max_output_tokens: MAX_OUTPUT_TOKENS,
     });
   }
 
@@ -457,28 +477,40 @@ module.exports = async (req, res) => {
 
   const ip = getClientIp(req);
   const body = readBody(req);
-  const text = cleanText(body.text);
+  const rawText = String(body.text || "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (!text) {
+  if (!rawText) {
     return res.status(400).json({
       error: "bad_input",
       message: "Please type what kind of scent you are looking for.",
     });
   }
 
+  if (countWords(rawText) > MAX_INPUT_WORDS) {
+    return res.status(400).json({
+      error: "message_too_long",
+      message:
+        "Please keep your message under 800 words so I can help you find a scent faster.",
+    });
+  }
+
+  const text = cleanText(rawText);
+
   const sessionId = sanitizeSession(body.session_id);
   const sessionQuota = getQuota(sessionId ? "s:" + sessionId : "ip:" + ip);
   const ipQuota = getQuota("ip:" + ip);
 
   if (sessionQuota.count >= MAX_ASKS || ipQuota.count >= MAX_ASKS_PER_IP) {
-    const resetAt = sessionQuota.count >= MAX_ASKS ? sessionQuota.reset : ipQuota.reset;
+    const resetAt =
+      sessionQuota.count >= MAX_ASKS ? sessionQuota.reset : ipQuota.reset;
     const retryMins = Math.max(1, Math.ceil((resetAt - Date.now()) / 60000));
     return res.status(429).json({
       error: "rate_limit_exceeded",
       remaining: 0,
       retry_minutes: retryMins,
-      message:
-        "You've reached the 5 scent searches allowed for now. Please try again after some time.",
+      message: DAILY_LIMIT_MESSAGE,
     });
   }
 
@@ -521,4 +553,23 @@ module.exports = async (req, res) => {
         : "Service temporarily busy. Please try again shortly.",
     });
   }
+};
+
+// Test helpers (used by test/limits.test.js only)
+module.exports._test = {
+  MAX_ASKS,
+  MAX_ASKS_PER_IP,
+  WINDOW_MS,
+  MAX_INPUT_WORDS,
+  MAX_INPUT_CHARS,
+  HISTORY_LIMIT,
+  HISTORY_CONTENT_CHARS,
+  MAX_OUTPUT_TOKENS,
+  DAILY_LIMIT_MESSAGE,
+  countWords,
+  cleanText,
+  sanitizeHistory,
+  sanitizeSession,
+  getQuota,
+  ipCache,
 };
