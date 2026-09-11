@@ -23,6 +23,7 @@ let catalogCache = { products: null, expiresAt: 0 };
 let storeContextCache = { text: null, expiresAt: 0 };
 let collectionsCache = { map: null, expiresAt: 0 };
 let shopifyTokenCache = { token: null, expiresAt: 0 };
+let resolvedShopifyShop = null;
 
 const ipCache = Object.create(null);
 
@@ -240,10 +241,45 @@ function stripHtml(value) {
 }
 
 function getShopifyShop() {
-  return String(process.env.SHOPIFY_SHOP || process.env.SHOPIFY_ADMIN_SHOP || "")
+  return String(
+    resolvedShopifyShop ||
+      process.env.SHOPIFY_SHOP ||
+      process.env.SHOPIFY_ADMIN_SHOP ||
+      ""
+  )
     .trim()
     .replace(/^https?:\/\//, "")
     .replace(/\/$/, "");
+}
+
+/**
+ * Resolve the real *.myshopify.com domain.
+ * Custom domains like cn1fragrance.myshopify.com may 404; meta.json has the true shop.
+ */
+async function resolveShopifyShop(force = false) {
+  if (!force && getShopifyShop()) return getShopifyShop();
+
+  try {
+    const response = await fetch(`https://${SHOP_DOMAIN}/meta.json`, {
+      headers: { Accept: "application/json" },
+    });
+    if (response.ok) {
+      const meta = await response.json();
+      const domain = String(meta?.myshopify_domain || "")
+        .trim()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/$/, "");
+      if (domain) {
+        resolvedShopifyShop = domain;
+        console.log("[shopify] resolved myshopify domain:", domain);
+        return domain;
+      }
+    }
+  } catch (err) {
+    console.warn("resolveShopifyShop failed:", err?.message || err);
+  }
+
+  return getShopifyShop();
 }
 
 function hasShopifyClientCredentials() {
@@ -275,23 +311,38 @@ async function getShopifyAccessToken(forceRefresh = false) {
     return shopifyTokenCache.token;
   }
 
-  const shop = getShopifyShop();
+  let shop = await resolveShopifyShop();
   const clientId = String(process.env.SHOPIFY_CLIENT_ID || "").trim();
   const clientSecret = String(process.env.SHOPIFY_CLIENT_SECRET || "").trim();
 
   if (clientId && clientSecret && shop) {
-    const response = await fetch(
-      `https://${shop}/admin/oauth/access_token`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: clientId,
-          client_secret: clientSecret,
-        }),
+    async function requestToken(shopDomain) {
+      const response = await fetch(
+        `https://${shopDomain}/admin/oauth/access_token`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: clientId,
+            client_secret: clientSecret,
+          }),
+        }
+      );
+      return response;
+    }
+
+    let response = await requestToken(shop);
+
+    // Wrong SHOPIFY_SHOP (custom/vanity myshopify alias) → resolve real domain and retry.
+    if (response.status === 404) {
+      const discovered = await resolveShopifyShop(true);
+      if (discovered && discovered !== shop) {
+        shop = discovered;
+        resolvedShopifyShop = discovered;
+        response = await requestToken(shop);
       }
-    );
+    }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
@@ -1776,6 +1827,7 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === "GET") {
+    const resolvedShop = await resolveShopifyShop().catch(() => getShopifyShop());
     return res.status(200).json({
       ok: true,
       service: "ai-scent-finder",
@@ -1790,7 +1842,9 @@ module.exports = async (req, res) => {
         : String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim()
           ? "static_admin_token"
           : "storefront_public_only",
-      shopify_shop: getShopifyShop() || null,
+      shopify_shop: resolvedShop || getShopifyShop() || null,
+      shopify_shop_env: String(process.env.SHOPIFY_SHOP || "").trim() || null,
+      storefront_domain: SHOP_DOMAIN,
     });
   }
 
