@@ -240,24 +240,26 @@ function stripHtml(value) {
     .trim();
 }
 
+function getConfiguredShopifyShop() {
+  return String(process.env.SHOPIFY_SHOP || process.env.SHOPIFY_ADMIN_SHOP || "")
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
+}
+
 function getShopifyShop() {
-  return String(
-    resolvedShopifyShop ||
-      process.env.SHOPIFY_SHOP ||
-      process.env.SHOPIFY_ADMIN_SHOP ||
-      ""
-  )
+  return String(resolvedShopifyShop || getConfiguredShopifyShop() || "")
     .trim()
     .replace(/^https?:\/\//, "")
     .replace(/\/$/, "");
 }
 
 /**
- * Resolve the real *.myshopify.com domain.
- * Custom domains like cn1fragrance.myshopify.com may 404; meta.json has the true shop.
+ * Resolve the real *.myshopify.com domain from storefront meta.json.
+ * Custom/vanity values like cn1fragrance.myshopify.com can 404 for Admin OAuth.
  */
 async function resolveShopifyShop(force = false) {
-  if (!force && getShopifyShop()) return getShopifyShop();
+  if (!force && resolvedShopifyShop) return resolvedShopifyShop;
 
   try {
     const response = await fetch(`https://${SHOP_DOMAIN}/meta.json`, {
@@ -279,7 +281,7 @@ async function resolveShopifyShop(force = false) {
     console.warn("resolveShopifyShop failed:", err?.message || err);
   }
 
-  return getShopifyShop();
+  return getConfiguredShopifyShop();
 }
 
 function hasShopifyClientCredentials() {
@@ -311,11 +313,12 @@ async function getShopifyAccessToken(forceRefresh = false) {
     return shopifyTokenCache.token;
   }
 
-  let shop = await resolveShopifyShop();
-  const clientId = String(process.env.SHOPIFY_CLIENT_ID || "").trim();
-  const clientSecret = String(process.env.SHOPIFY_CLIENT_SECRET || "").trim();
+  if (clientId && clientSecret) {
+    let shop = (await resolveShopifyShop()) || getConfiguredShopifyShop();
+    if (!shop) {
+      throw new Error("missing_shopify_shop");
+    }
 
-  if (clientId && clientSecret && shop) {
     async function requestToken(shopDomain) {
       const response = await fetch(
         `https://${shopDomain}/admin/oauth/access_token`,
@@ -334,8 +337,8 @@ async function getShopifyAccessToken(forceRefresh = false) {
 
     let response = await requestToken(shop);
 
-    // Wrong SHOPIFY_SHOP (custom/vanity myshopify alias) → resolve real domain and retry.
-    if (response.status === 404) {
+    // Wrong SHOPIFY_SHOP → resolve real domain from meta.json and retry.
+    if (!response.ok) {
       const discovered = await resolveShopifyShop(true);
       if (discovered && discovered !== shop) {
         shop = discovered;
