@@ -153,6 +153,134 @@ async function run() {
   assert.strictEqual(Math.max(0, t.MAX_ASKS - mid.count), 13);
   passed += 1;
 
+  // --- Response-handling: answer store questions, no forced wrong product ---
+  assert.ok(
+    /Do NOT deflect with generic lines/i.test(t.SYSTEM_INSTRUCTIONS),
+    "prompt forbids fragrance-only deflection"
+  );
+  assert.ok(
+    /Discount \/ coupon questions/i.test(t.SYSTEM_INSTRUCTIONS),
+    "prompt covers coupon questions"
+  );
+  assert.ok(
+    /Product searches/i.test(t.SYSTEM_INSTRUCTIONS),
+    "prompt covers product-category searches"
+  );
+
+  const sampleCatalog = [
+    {
+      title: "Floral Reverie Body Splash",
+      handle: "floral-reverie-body-splash",
+      type: "Women Body Mist",
+      vendor: "CN1",
+      tags: "",
+      summary: "fresh floral body splash",
+      price: "29.00",
+      compare_at_price: "",
+      available: true,
+    },
+    {
+      title: "Amber Night",
+      handle: "amber-night",
+      type: "Perfume",
+      vendor: "CN1",
+      tags: "",
+      summary: "warm amber",
+      price: "39.00",
+      compare_at_price: "49.00",
+      available: true,
+    },
+  ];
+
+  const missingProduct = t.bindToCatalog(
+    {
+      intent: "recommend",
+      title: "Hand Lotion",
+      handle: "hand-lotion",
+      reply: "We do not currently carry hand lotion in the catalog.",
+    },
+    sampleCatalog
+  );
+  assert.strictEqual(missingProduct.intent, "chat");
+  assert.strictEqual(missingProduct.handle, "");
+  assert.ok(/hand lotion/i.test(missingProduct.reply));
+
+  const foundProduct = t.bindToCatalog(
+    {
+      intent: "recommend",
+      title: "Floral Reverie Body Splash",
+      handle: "floral-reverie-body-splash",
+      reply: "Yes — we have Floral Reverie Body Splash.",
+    },
+    sampleCatalog
+  );
+  assert.strictEqual(foundProduct.intent, "recommend");
+  assert.strictEqual(foundProduct.handle, "floral-reverie-body-splash");
+
+  const catalogText = t.formatCatalog(sampleCatalog);
+  assert.ok(/price: \$29\.00/.test(catalogText));
+  assert.ok(/sale was \$49\.00/.test(catalogText));
+  assert.ok(/in stock/.test(catalogText));
+  passed += 10;
+
+  // --- Factual discount/coupon answers (no invented codes) ---
+  assert.strictEqual(t.isDiscountQuestion("Is there any coupon code?"), true);
+  assert.strictEqual(t.isDiscountQuestion("warm vanilla scent"), false);
+  assert.deepStrictEqual(
+    t.parsePublishedCoupons("WELCOME10: 10% off | SPRING5: $5 off"),
+    [
+      { code: "WELCOME10", detail: "10% off" },
+      { code: "SPRING5", detail: "$5 off" },
+    ]
+  );
+  assert.deepStrictEqual(t.parsePublishedCoupons(""), []);
+
+  const saleCatalog = [
+    {
+      title: "Fusion",
+      handle: "fusion",
+      price: "54.40",
+      compare_at_price: "64.00",
+    },
+    {
+      title: "Amber Night",
+      handle: "amber-night",
+      price: "39.00",
+      compare_at_price: "",
+    },
+  ];
+  assert.strictEqual(t.productHasSale(saleCatalog[0]), true);
+  assert.strictEqual(t.productHasSale(saleCatalog[1]), false);
+
+  const saleReply = t.buildFactualDiscountReply({
+    text: "Is there any discount for Fusion?",
+    catalog: saleCatalog,
+    previousHandles: [],
+    coupons: [],
+  });
+  assert.ok(/Yes/i.test(saleReply.reply));
+  assert.ok(/54\.40/.test(saleReply.reply));
+  assert.ok(/no published coupon code/i.test(saleReply.reply));
+
+  const noSaleReply = t.buildFactualDiscountReply({
+    text: "any coupon for this product?",
+    catalog: saleCatalog,
+    previousHandles: ["amber-night"],
+    coupons: [],
+  });
+  assert.ok(/^No/i.test(noSaleReply.reply));
+  assert.ok(/Amber Night/.test(noSaleReply.reply));
+  assert.ok(/no published coupon code/i.test(noSaleReply.reply));
+
+  const withCode = t.buildFactualDiscountReply({
+    text: "coupon code?",
+    catalog: saleCatalog,
+    previousHandles: [],
+    coupons: [{ code: "SAVE10", detail: "10% off" }],
+  });
+  assert.ok(/SAVE10/.test(withCode.reply));
+  passed += 12;
+
   console.log(`OK — ${passed} assertions passed`);
 }
 
