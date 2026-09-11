@@ -1244,7 +1244,7 @@
     row.className = "chat-row bot";
     row.innerHTML =
       "<div class='bot-bubble'><strong>AI Scent Finder</strong><br><br>" +
-      escapeHtml(text) +
+      escapeHtml(text).replace(/\n/g, "<br>") +
       (extraHtml || "") +
       "</div>";
     chatThread.appendChild(row);

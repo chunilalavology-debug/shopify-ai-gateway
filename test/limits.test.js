@@ -159,12 +159,12 @@ async function run() {
     "prompt forbids fragrance-only deflection"
   );
   assert.ok(
-    /Discount \/ coupon questions/i.test(t.SYSTEM_INSTRUCTIONS),
-    "prompt covers coupon questions"
+    /Never invent product names, prices, coupons/i.test(t.SYSTEM_INSTRUCTIONS),
+    "prompt forbids inventing store facts"
   );
   assert.ok(
-    /Product searches/i.test(t.SYSTEM_INSTRUCTIONS),
-    "prompt covers product-category searches"
+    /STORE DATA FACTS/i.test(t.SYSTEM_INSTRUCTIONS),
+    "prompt requires store data facts"
   );
 
   const sampleCatalog = [
@@ -175,9 +175,14 @@ async function run() {
       vendor: "CN1",
       tags: "",
       summary: "fresh floral body splash",
+      description: "fresh floral body splash",
+      notes: "",
       price: "29.00",
       compare_at_price: "",
       available: true,
+      url: "https://www.cn1fragrance.com/products/floral-reverie-body-splash",
+      variants: [],
+      collections: [],
     },
     {
       title: "Amber Night",
@@ -186,9 +191,14 @@ async function run() {
       vendor: "CN1",
       tags: "",
       summary: "warm amber",
+      description: "warm amber",
+      notes: "",
       price: "39.00",
       compare_at_price: "49.00",
       available: true,
+      url: "https://www.cn1fragrance.com/products/amber-night",
+      variants: [],
+      collections: [],
     },
   ];
 
@@ -219,9 +229,113 @@ async function run() {
 
   const catalogText = t.formatCatalog(sampleCatalog);
   assert.ok(/price: \$29\.00/.test(catalogText));
-  assert.ok(/sale was \$49\.00/.test(catalogText));
-  assert.ok(/in stock/.test(catalogText));
+  assert.ok(/compare_at: \$49\.00/.test(catalogText));
+  assert.ok(/available: yes/.test(catalogText));
   passed += 10;
+
+  // --- Intent routing heuristics ---
+  assert.strictEqual(
+    t.classifyIntentHeuristic("hi", []).query_type,
+    "greeting"
+  );
+  assert.strictEqual(
+    t.classifyIntentHeuristic("Is there any coupon for this?", ["amber-night"])
+      .query_type,
+    "discount"
+  );
+  assert.strictEqual(
+    t.classifyIntentHeuristic("suggest a perfume for everyday use", [])
+      .needs_catalog,
+    true
+  );
+  assert.strictEqual(
+    t.classifyIntentHeuristic("how much is shipping?", []).query_type,
+    "shipping"
+  );
+  const citrusHits = t.searchCatalog(
+    [
+      {
+        title: "Citrus Breeze",
+        handle: "citrus-breeze",
+        type: "Perfume",
+        tags: "fresh, citrus",
+        summary: "bright lemon and bergamot",
+        description: "fresh citrus daily wear",
+        notes: "lemon, bergamot",
+        collections: ["Fresh"],
+        price: "35",
+        available: true,
+      },
+      {
+        title: "Dark Oud",
+        handle: "dark-oud",
+        type: "Perfume",
+        tags: "woody",
+        summary: "deep oud",
+        description: "strong night scent",
+        notes: "oud",
+        collections: [],
+        price: "55",
+        available: true,
+      },
+    ],
+    ["citrus", "fresh"],
+    "I want something fresh and citrusy",
+    5
+  );
+  assert.strictEqual(citrusHits[0].handle, "citrus-breeze");
+  assert.strictEqual(
+    t.filterByBudget(sampleCatalog, "anything under $30").length,
+    1
+  );
+  passed += 6;
+
+  // --- Admin metafield mapping helpers ---
+  const fields = t.metafieldMap([
+    { namespace: "custom", key: "fragrance_notes", value: "bergamot, musk" },
+    { namespace: "custom", key: "longevity", value: "6-8 hours" },
+  ]);
+  assert.strictEqual(fields["custom.fragrance_notes"], "bergamot, musk");
+  assert.strictEqual(
+    t.pickMetafield(fields, ["custom.fragrance_notes", "custom.notes"]),
+    "bergamot, musk"
+  );
+  const adminMapped = t.mapAdminProduct({
+    title: "Citrus Breeze",
+    handle: "citrus-breeze",
+    productType: "Perfume",
+    vendor: "CN1",
+    tags: ["fresh"],
+    description: "Bright citrus scent",
+    featuredImage: { url: "https://cdn.example/x.jpg" },
+    collections: { nodes: [{ title: "Fresh" }] },
+    metafields: {
+      nodes: [
+        { namespace: "custom", key: "fragrance_notes", value: "lemon, bergamot" },
+        { namespace: "custom", key: "ingredients", value: "alcohol, oils" },
+        { namespace: "custom", key: "longevity", value: "8 hours" },
+      ],
+    },
+    variants: {
+      nodes: [
+        {
+          title: "50ml",
+          price: "39.00",
+          compareAtPrice: "49.00",
+          availableForSale: true,
+          inventoryQuantity: 12,
+          sku: "CB-50",
+        },
+      ],
+    },
+  });
+  assert.strictEqual(adminMapped.notes, "lemon, bergamot");
+  assert.strictEqual(adminMapped.ingredients, "alcohol, oils");
+  assert.strictEqual(adminMapped.longevity, "8 hours");
+  assert.strictEqual(adminMapped.price, "39.00");
+  assert.strictEqual(adminMapped.compare_at_price, "49.00");
+  assert.strictEqual(adminMapped.source, "admin");
+  passed += 8;
 
   // --- Factual discount/coupon answers (no invented codes) ---
   assert.strictEqual(t.isDiscountQuestion("Is there any coupon code?"), true);

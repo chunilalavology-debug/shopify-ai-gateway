@@ -7,52 +7,78 @@ const WINDOW_MS = 24 * 60 * 60 * 1000; // rolling 24-hour window
 const MAX_INPUT_WORDS = 800;
 const MAX_INPUT_CHARS = 5000; // safety cap (~800 words)
 const HISTORY_LIMIT = 8; // keep recent turns only (within 6–10)
-const HISTORY_CONTENT_CHARS = 280;
-const MAX_OUTPUT_TOKENS = 400; // within 300–500 target
+const HISTORY_CONTENT_CHARS = 400;
+const MAX_OUTPUT_TOKENS = 450; // within 300–500 target
 const DAILY_LIMIT_MESSAGE =
   "🌸 You've reached your free chat limit for today. Please come back tomorrow and we'll be happy to help! 💜";
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const SHOP_DOMAIN =
   process.env.SHOPIFY_STORE_DOMAIN || "www.cn1fragrance.com";
+const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || "2024-10";
 const BLOCKED_HANDLES = new Set(["cn1-shipping-protection"]);
 
-// In-memory catalog cache — refreshed every 5 minutes so new/deleted products
-// are reflected quickly without hammering the Shopify storefront on every call.
-const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// In-memory caches — refreshed every 5 minutes
+const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 let catalogCache = { products: null, expiresAt: 0 };
 let storeContextCache = { text: null, expiresAt: 0 };
+let collectionsCache = { map: null, expiresAt: 0 };
+let shopifyTokenCache = { token: null, expiresAt: 0 };
 
 const ipCache = Object.create(null);
 
+/**
+ * Final-answer prompt. The model may ONLY use STORE DATA FACTS provided
+ * in the user message — never invent products, prices, coupons, or policies.
+ */
 const SYSTEM_INSTRUCTIONS = `You are the in-store shopping concierge for CN1 Fragrance.
-Help with fragrances AND other relevant store questions: products, pricing, availability, discounts/coupons, shipping, returns, and general shopping help.
-Speak like a real boutique advisor: warm, concise, and specific. Never sound like a system prompt.
+Answer customer questions about products, recommendations, pricing, availability, discounts, shipping, returns, notes, ingredients, and general store help.
 
-Always reply with a single raw JSON object and nothing else. No markdown. No extra text.
+Always reply with a single raw JSON object and nothing else. No markdown fences.
 
 JSON schema:
 {
-  "reply": "1 to 3 natural sentences shown to the shopper",
+  "reply": "natural customer-friendly answer (use short line breaks for product recommendations)",
   "intent": "recommend" | "clarify" | "chat",
-  "title": "exact product title from the live CN1 catalog, or empty string",
-  "handle": "exact Shopify product handle from the live CN1 catalog, or empty string",
+  "title": "exact product title from STORE DATA FACTS, or empty string",
+  "handle": "exact Shopify product handle from STORE DATA FACTS, or empty string",
   "bg_color": "#hex mood color"
 }
 
+Hard rules:
+- Use ONLY STORE DATA FACTS and conversation history. Never invent product names, prices, coupons, stock, notes, ingredients, shipping, returns, or URLs.
+- Prefer metafield values in STORE DATA FACTS for fragrance notes, ingredients, longevity, gender, and occasion when present.
+- If a fact is missing from STORE DATA FACTS, say it is not currently available.
+- Do NOT deflect with generic lines like "We specialize in fragrances..." — answer the question.
+- When recommending, prefer this reply shape:
+  Product Name
+  Price: $XX
+  Why I recommend it: ...
+  Availability: In stock / Out of stock
+  Then set intent to "recommend" with that product's exact title and handle.
+- For follow-ups ("this one", "that perfume", "something cheaper"), use Focused product / Recently discussed products in the facts.
+- Discount/coupon answers must match REAL DISCOUNT FACTS exactly. Never invent a code.
+- If recommending an alternative, pick a different handle than ones already recommended when possible.
+- Keep reply concise (about 40–90 words). bg_color mood defaults: warm #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.`;
+
+const CLASSIFY_INSTRUCTIONS = `Classify the shopper message for a Shopify fragrance store assistant.
+Return ONLY JSON:
+{
+  "query_type": "greeting" | "recommend" | "product_info" | "discount" | "shipping" | "returns" | "compare" | "chat" | "off_topic",
+  "needs_catalog": true/false,
+  "needs_policies": true/false,
+  "needs_discounts": true/false,
+  "focus_previous": true/false,
+  "search_terms": ["keywords for product search"]
+}
 Rules:
-- Use LIVE CN1 CATALOG and STORE CONTEXT in the user message as your source of truth.
-- Answer relevant shopping questions directly. Do NOT deflect with generic lines like "We specialize in fragrances..." or "we only help with scent finding."
-- You may ONLY recommend products from the LIVE CN1 CATALOG. Copy title and handle exactly. Never invent products or brands CN1 does not sell.
-- Product searches (e.g. hand lotion, body splash, candle): search the catalog by title, type, tags, and summary. If a match exists, answer yes, briefly explain, and set intent to "recommend" with that product. If none exists, say so clearly and optionally suggest the closest related catalog item only if it is genuinely similar. intent "chat" when nothing fits.
-- Discount / coupon questions: NEVER invent coupon codes, percentages, or sale prices. Only use REAL DISCOUNT FACTS / STORE CONTEXT. If a product has no sale price and no published coupon applies, say clearly that there is no discount/coupon for it. If there is a real sale price, quote the live catalog numbers exactly.
-- Pricing / availability: use catalog price and availability fields when present.
-- Shipping / returns / policies: answer from STORE CONTEXT. If the exact detail is missing, say that information is not available and suggest contacting support from STORE CONTEXT when an email is listed.
-- Fragrance matching still works as usual: if they name a designer perfume or mood, recommend the closest CN1 catalog match and set intent to "recommend".
-- If they ask for more options, recommend a different catalog product than previous handles.
-- Greetings or vague openers: welcome them and ask how you can help (scent, product type, pricing, shipping, etc.). intent "chat".
-- Only refuse clearly off-topic non-shopping chatter (e.g. unrelated trivia). For those, briefly say you can help with CN1 products and store questions.
-- Keep reply under 70 words.
-- bg_color should match the mood: warm amber #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.`;
+- greeting: hi/thanks/ok only → needs_* false
+- recommend / compare / budget / occasion / notes matching → needs_catalog true
+- price/availability/notes/ingredients/longevity/unisex about a product → product_info, needs_catalog true, focus_previous true if they say this/that/it
+- coupon/discount/sale → discount, needs_catalog true, needs_discounts true, focus_previous true for this product
+- shipping → shipping, needs_policies true
+- returns/refund → returns, needs_policies true
+- off_topic non-shopping → off_topic
+- search_terms: 2–8 useful keywords from the request (citrus, date night, under 40, etc.)`;
 
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -213,6 +239,330 @@ function stripHtml(value) {
     .trim();
 }
 
+function getShopifyShop() {
+  return String(process.env.SHOPIFY_SHOP || process.env.SHOPIFY_ADMIN_SHOP || "")
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
+}
+
+function hasShopifyClientCredentials() {
+  return Boolean(
+    getShopifyShop() &&
+      String(process.env.SHOPIFY_CLIENT_ID || "").trim() &&
+      String(process.env.SHOPIFY_CLIENT_SECRET || "").trim()
+  );
+}
+
+function hasShopifyAdminAuth() {
+  return (
+    hasShopifyClientCredentials() ||
+    Boolean(String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim())
+  );
+}
+
+/**
+ * Shopify Client Credentials Grant (server-side only).
+ * Caches the access token and refreshes ~60s before expiry.
+ * Docs: https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/client-credentials-grant
+ */
+async function getShopifyAccessToken(forceRefresh = false) {
+  if (
+    !forceRefresh &&
+    shopifyTokenCache.token &&
+    Date.now() < shopifyTokenCache.expiresAt - 60_000
+  ) {
+    return shopifyTokenCache.token;
+  }
+
+  const shop = getShopifyShop();
+  const clientId = String(process.env.SHOPIFY_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.SHOPIFY_CLIENT_SECRET || "").trim();
+
+  if (clientId && clientSecret && shop) {
+    const response = await fetch(
+      `https://${shop}/admin/oauth/access_token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(
+        `shopify_client_credentials_failed_${response.status}:${detail.slice(0, 180)}`
+      );
+    }
+
+    const data = await response.json();
+    const expiresIn = Number(data.expires_in) || 86399;
+    shopifyTokenCache = {
+      token: data.access_token,
+      expiresAt: Date.now() + expiresIn * 1000,
+    };
+    return shopifyTokenCache.token;
+  }
+
+  const staticToken = String(
+    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || ""
+  ).trim();
+  if (staticToken) return staticToken;
+
+  throw new Error("missing_shopify_credentials");
+}
+
+async function shopifyAdminGraphql(query, variables = {}, retried = false) {
+  const shop = getShopifyShop();
+  if (!shop) throw new Error("missing_shopify_shop");
+
+  const token = await getShopifyAccessToken(retried);
+  const response = await fetch(
+    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({ query, variables }),
+    }
+  );
+
+  if (response.status === 401 && !retried && hasShopifyClientCredentials()) {
+    shopifyTokenCache = { token: null, expiresAt: 0 };
+    return shopifyAdminGraphql(query, variables, true);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `shopify_graphql_http_${response.status}:${detail.slice(0, 180)}`
+    );
+  }
+
+  const payload = await response.json();
+  if (payload.errors?.length) {
+    throw new Error(
+      `shopify_graphql_error:${payload.errors
+        .map((err) => err.message)
+        .join("; ")
+        .slice(0, 240)}`
+    );
+  }
+  return payload.data;
+}
+
+function metafieldMap(nodes) {
+  const map = Object.create(null);
+  for (const node of nodes || []) {
+    if (!node?.namespace || !node?.key) continue;
+    const key = `${node.namespace}.${node.key}`;
+    map[key] = String(node.value || "").trim();
+  }
+  return map;
+}
+
+function pickMetafield(map, candidates) {
+  for (const key of candidates) {
+    if (map[key]) return map[key];
+    const lowerKey = Object.keys(map).find(
+      (item) => item.toLowerCase() === key.toLowerCase()
+    );
+    if (lowerKey && map[lowerKey]) return map[lowerKey];
+  }
+  // Fallback: match by key suffix
+  for (const candidate of candidates) {
+    const suffix = candidate.includes(".")
+      ? candidate.split(".").pop()
+      : candidate;
+    const found = Object.keys(map).find((item) =>
+      item.toLowerCase().endsWith("." + String(suffix).toLowerCase())
+    );
+    if (found && map[found]) return map[found];
+  }
+  return "";
+}
+
+function mapAdminProduct(node) {
+  const handle = String(node?.handle || "").trim();
+  const description = stripHtml(
+    node?.description || node?.descriptionHtml || ""
+  );
+  const variants = (node?.variants?.nodes || []).map((entry) => ({
+    title: String(entry.title || "Default").trim(),
+    price: entry.price != null ? String(entry.price) : "",
+    compare_at_price:
+      entry.compareAtPrice != null ? String(entry.compareAtPrice) : "",
+    available: Boolean(entry.availableForSale),
+    sku: String(entry.sku || ""),
+    inventory_quantity:
+      entry.inventoryQuantity == null ? null : Number(entry.inventoryQuantity),
+  }));
+  const variant =
+    variants.find((item) => item.available) || variants[0] || null;
+  const price = variant?.price || "";
+  const compareAt = variant?.compare_at_price || "";
+  const onSale =
+    price && compareAt && Number(compareAt) > Number(price);
+  const fields = metafieldMap(node?.metafields?.nodes || []);
+  const notes =
+    pickMetafield(fields, [
+      "custom.fragrance_notes",
+      "custom.notes",
+      "custom.scent_notes",
+      "descriptors.fragrance_notes",
+      "shopify.fragrance-notes",
+    ]) || extractNotes(description);
+  const ingredients = pickMetafield(fields, [
+    "custom.ingredients",
+    "custom.ingredient_list",
+    "descriptors.ingredients",
+  ]);
+  const longevity = pickMetafield(fields, [
+    "custom.longevity",
+    "custom.wear_time",
+    "descriptors.longevity",
+  ]);
+  const gender = pickMetafield(fields, [
+    "custom.gender",
+    "custom.unisex",
+    "descriptors.gender",
+  ]);
+  const occasion = pickMetafield(fields, [
+    "custom.occasion",
+    "descriptors.occasion",
+  ]);
+
+  return {
+    title: String(node?.title || "").trim(),
+    handle,
+    type: String(node?.productType || "").trim(),
+    tags: Array.isArray(node?.tags) ? node.tags.join(", ") : String(node?.tags || ""),
+    vendor: String(node?.vendor || "").trim(),
+    summary: description.slice(0, 220),
+    description: description.slice(0, 700),
+    notes,
+    ingredients,
+    longevity,
+    gender,
+    occasion,
+    metafields: fields,
+    price,
+    compare_at_price: onSale ? compareAt : "",
+    available: variant ? Boolean(variant.available) : true,
+    inventory_quantity: variant?.inventory_quantity,
+    url: handle ? `https://${SHOP_DOMAIN}/products/${handle}` : "",
+    image: String(node?.featuredImage?.url || ""),
+    variants: variants.slice(0, 8),
+    collections: (node?.collections?.nodes || [])
+      .map((item) => String(item.title || "").trim())
+      .filter(Boolean)
+      .slice(0, 6),
+    source: "admin",
+  };
+}
+
+async function loadCatalogFromAdmin() {
+  const baseProductFields = `
+    id
+    title
+    handle
+    status
+    productType
+    vendor
+    tags
+    description
+    descriptionHtml
+    featuredImage { url }
+    collections(first: 6) { nodes { title handle } }
+    metafields(first: 40) {
+      nodes { namespace key type value }
+    }
+  `;
+
+  const queryWithInventory = `
+    query ProductsPage($cursor: String) {
+      products(first: 50, after: $cursor, query: "status:active") {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          ${baseProductFields}
+          variants(first: 25) {
+            nodes {
+              id
+              title
+              sku
+              price
+              compareAtPrice
+              availableForSale
+              inventoryQuantity
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const queryWithoutInventory = `
+    query ProductsPage($cursor: String) {
+      products(first: 50, after: $cursor, query: "status:active") {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          ${baseProductFields}
+          variants(first: 25) {
+            nodes {
+              id
+              title
+              sku
+              price
+              compareAtPrice
+              availableForSale
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  async function paginate(query) {
+    const all = [];
+    let cursor = null;
+    for (let page = 0; page < 6; page += 1) {
+      const data = await shopifyAdminGraphql(query, { cursor });
+      const connection = data?.products;
+      const nodes = connection?.nodes || [];
+      for (const node of nodes) {
+        if (!node?.handle || !node?.title) continue;
+        if (BLOCKED_HANDLES.has(node.handle)) continue;
+        all.push(mapAdminProduct(node));
+      }
+      if (!connection?.pageInfo?.hasNextPage) break;
+      cursor = connection.pageInfo.endCursor;
+    }
+    const seen = new Set();
+    return all.filter((item) => {
+      if (seen.has(item.handle)) return false;
+      seen.add(item.handle);
+      return true;
+    });
+  }
+
+  try {
+    return await paginate(queryWithInventory);
+  } catch (err) {
+    console.warn(
+      "Admin catalog with inventory failed; retrying without inventoryQuantity:",
+      err?.message || err
+    );
+    return paginate(queryWithoutInventory);
+  }
+}
+
 function pickVariant(variants) {
   if (!Array.isArray(variants) || !variants.length) return null;
   return (
@@ -222,105 +572,177 @@ function pickVariant(variants) {
   );
 }
 
-function mapProduct(item) {
-  const variant = pickVariant(item.variants);
+function extractNotes(text) {
+  const raw = String(text || "");
+  const match = raw.match(
+    /(?:notes?|accords?|olfactory)\s*[:\-–]\s*([^\n.]{3,120})/i
+  );
+  return match ? match[1].trim() : "";
+}
+
+function mapProduct(item, collectionTitles) {
+  const variants = Array.isArray(item.variants) ? item.variants : [];
+  const variant = pickVariant(variants);
   const price = variant?.price != null ? String(variant.price) : "";
   const compareAt =
     variant?.compare_at_price != null ? String(variant.compare_at_price) : "";
   const onSale =
-    price &&
-    compareAt &&
-    Number(compareAt) > Number(price);
+    price && compareAt && Number(compareAt) > Number(price);
+  const description = stripHtml(item.body_html || "");
+  const handle = String(item.handle || "").trim();
+  const image =
+    item.images?.[0]?.src ||
+    item.image?.src ||
+    variant?.featured_image?.src ||
+    "";
 
   return {
     title: String(item.title || "").trim(),
-    handle: String(item.handle || "").trim(),
+    handle,
     type: String(item.product_type || "").trim(),
     tags: Array.isArray(item.tags)
       ? item.tags.join(", ")
       : String(item.tags || ""),
     vendor: String(item.vendor || "").trim(),
-    summary: stripHtml(item.body_html || "").slice(0, 180),
+    summary: description.slice(0, 220),
+    description: description.slice(0, 500),
+    notes: extractNotes(description),
+    ingredients: "",
+    longevity: "",
+    gender: "",
+    occasion: "",
+    metafields: {},
     price,
     compare_at_price: onSale ? compareAt : "",
     available: variant ? Boolean(variant.available) : true,
+    inventory_quantity: null,
+    url: handle ? `https://${SHOP_DOMAIN}/products/${handle}` : "",
+    image: String(image || ""),
+    variants: variants.slice(0, 6).map((entry) => ({
+      title: String(entry.title || "Default").trim(),
+      price: entry.price != null ? String(entry.price) : "",
+      compare_at_price:
+        entry.compare_at_price != null ? String(entry.compare_at_price) : "",
+      available: Boolean(entry.available),
+      sku: String(entry.sku || ""),
+    })),
+    collections: Array.isArray(collectionTitles)
+      ? collectionTitles.slice(0, 6)
+      : [],
+    source: "storefront",
   };
 }
 
-/**
- * Fetch a single page of products from the Shopify storefront /products.json
- * endpoint. This is a public, unauthenticated endpoint available on all stores.
- *
- * @param {number} page  1-based page number
- * @returns {Promise<Array>}
- */
 async function fetchProductPage(page) {
   const url = `https://${SHOP_DOMAIN}/products.json?limit=250&page=${page}`;
-
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
   });
-
   if (!response.ok) return [];
-
   const data = await response.json();
-  const products = data?.products || [];
-
-  return products
-    .filter(
-      (item) =>
-        item &&
-        item.handle &&
-        item.title &&
-        !BLOCKED_HANDLES.has(item.handle)
-    )
-    .map(mapProduct);
+  return data?.products || [];
 }
 
-/**
- * Load the complete live product catalog from Shopify by paging through
- * /products.json (max 250 per page, up to 3 pages = 750 products).
- *
- * Results are cached in-memory for CATALOG_CACHE_TTL_MS (5 minutes) so that:
- *  - New products appear within 5 minutes
- *  - Deleted products disappear within 5 minutes
- *  - Every Vercel function instance has a fresh catalog without hammering Shopify
- *
- * Set CATALOG_CACHE_TTL_MS to 0 to disable caching for instant propagation.
- */
+async function loadCollectionTitles() {
+  const now = Date.now();
+  if (collectionsCache.map && now < collectionsCache.expiresAt) {
+    return collectionsCache.map;
+  }
+
+  let titles = [];
+  try {
+    const response = await fetch(
+      `https://${SHOP_DOMAIN}/collections.json?limit=250`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (response.ok) {
+      const data = await response.json();
+      titles = (data?.collections || [])
+        .map((item) => String(item.title || "").trim())
+        .filter(Boolean)
+        .slice(0, 60);
+    }
+  } catch {
+    titles = [];
+  }
+
+  collectionsCache = {
+    map: titles,
+    expiresAt: now + CATALOG_CACHE_TTL_MS,
+  };
+  return titles;
+}
+
 async function loadFullCatalog() {
   const now = Date.now();
-
-  // Return cached catalog if still fresh
   if (catalogCache.products && now < catalogCache.expiresAt) {
     return catalogCache.products;
   }
 
-  const allProducts = [];
-  const MAX_PAGES = 3; // up to 750 products
+  // Prefer Admin API (Client Credentials) for metafields + accurate inventory.
+  if (hasShopifyAdminAuth()) {
+    try {
+      const adminProducts = await loadCatalogFromAdmin();
+      if (adminProducts.length) {
+        catalogCache = {
+          products: adminProducts,
+          expiresAt: now + CATALOG_CACHE_TTL_MS,
+        };
+        console.log(
+          `[catalog] Loaded ${adminProducts.length} products from Shopify Admin API`
+        );
+        return adminProducts;
+      }
+    } catch (err) {
+      console.error(
+        "Admin catalog failed, falling back to public products.json:",
+        err?.message || err
+      );
+    }
+  }
 
+  const allProducts = [];
+  const MAX_PAGES = 3;
   for (let page = 1; page <= MAX_PAGES; page++) {
     const batch = await fetchProductPage(page);
     allProducts.push(...batch);
-    // If we got fewer than 250, there are no more pages
     if (batch.length < 250) break;
   }
 
-  // De-duplicate by handle (safety net)
-  const seen = new Set();
-  const unique = allProducts.filter((p) => {
-    if (seen.has(p.handle)) return false;
-    seen.add(p.handle);
-    return true;
-  });
+  const collectionTitles = await loadCollectionTitles().catch(() => []);
 
-  // Update cache
+  const seen = new Set();
+  const unique = allProducts
+    .filter((item) => {
+      if (!item?.handle || !item?.title || BLOCKED_HANDLES.has(item.handle)) {
+        return false;
+      }
+      if (seen.has(item.handle)) return false;
+      seen.add(item.handle);
+      return true;
+    })
+    .map((item) => {
+      const mapped = mapProduct(item, []);
+      const hay = `${mapped.title} ${mapped.type} ${mapped.tags}`.toLowerCase();
+      mapped.collections = collectionTitles
+        .filter((title) => {
+          const words = title
+            .toLowerCase()
+            .split(/[^a-z0-9]+/)
+            .filter((w) => w.length > 3);
+          return words.some((word) => hay.includes(word));
+        })
+        .slice(0, 4);
+      mapped.source = "storefront";
+      return mapped;
+    });
+
   catalogCache = {
     products: unique,
     expiresAt: now + CATALOG_CACHE_TTL_MS,
   };
 
-  console.log(`[catalog] Loaded ${unique.length} products from Shopify (page 1–${Math.ceil(unique.length / 250)})`);
+  console.log(`[catalog] Loaded ${unique.length} products from public storefront`);
   return unique;
 }
 
@@ -351,11 +773,6 @@ async function fetchPageText(handle) {
   }
 }
 
-/**
- * Public storefront context for discounts/shipping/returns.
- * Active Shopify discount codes are not exposed publicly without Admin API,
- * so we surface sale prices, free-shipping policy text, and known offer pages.
- */
 async function loadStoreContext(catalog) {
   const now = Date.now();
   if (storeContextCache.text && now < storeContextCache.expiresAt) {
@@ -381,7 +798,7 @@ async function loadStoreContext(catalog) {
   ).trim();
 
   const lines = [
-    "STORE CONTEXT (answer coupon, shipping, returns, and policy questions from this):",
+    "STORE POLICIES:",
     shipping
       ? `Shipping policy: ${shipping}`
       : "Shipping policy: not available from storefront data.",
@@ -412,12 +829,6 @@ function isDiscountQuestion(text) {
   );
 }
 
-/**
- * Published coupon codes only from merchant env / Admin API — never invented.
- * SHOPIFY_DISCOUNT_INFO examples:
- *   "WELCOME10: 10% off sitewide | SPRING5: $5 off"
- *   "No active coupon codes"
- */
 function parsePublishedCoupons(raw) {
   const value = String(raw || "").trim();
   if (!value) return [];
@@ -439,18 +850,9 @@ function parsePublishedCoupons(raw) {
 
 async function loadPublishedCoupons() {
   const fromEnv = parsePublishedCoupons(process.env.SHOPIFY_DISCOUNT_INFO);
-  const token = String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
-  const shop = String(
-    process.env.SHOPIFY_SHOP || process.env.SHOPIFY_ADMIN_SHOP || ""
-  )
-    .trim()
-    .replace(/^https?:\/\//, "")
-    .replace(/\/$/, "");
-
-  if (!token || !shop) return fromEnv;
+  if (!hasShopifyAdminAuth() || !getShopifyShop()) return fromEnv;
 
   try {
-    const endpoint = `https://${shop}/admin/api/2024-10/graphql.json`;
     const query = `{
       codeDiscountNodes(first: 25, query: "status:active") {
         nodes {
@@ -475,26 +877,15 @@ async function loadPublishedCoupons() {
       }
     }`;
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token,
-      },
-      body: JSON.stringify({ query }),
-    });
-    if (!response.ok) return fromEnv;
-
-    const data = await response.json();
-    const nodes = data?.data?.codeDiscountNodes?.nodes || [];
+    const data = await shopifyAdminGraphql(query);
+    const nodes = data?.codeDiscountNodes?.nodes || [];
     const fromAdmin = [];
     for (const node of nodes) {
       const discount = node?.codeDiscount;
       if (!discount || String(discount.status || "").toUpperCase() !== "ACTIVE") {
         continue;
       }
-      const codes = discount.codes?.nodes || [];
-      for (const entry of codes) {
+      for (const entry of discount.codes?.nodes || []) {
         if (entry?.code) {
           fromAdmin.push({
             code: String(entry.code).toUpperCase(),
@@ -504,7 +895,6 @@ async function loadPublishedCoupons() {
       }
     }
 
-    // Prefer live Admin codes when available; keep env codes as extras.
     const merged = [...fromAdmin];
     for (const coupon of fromEnv) {
       if (!merged.some((item) => item.code === coupon.code)) merged.push(coupon);
@@ -555,10 +945,6 @@ function productHasSale(product) {
   return Number(product.compare_at_price) > Number(product.price);
 }
 
-/**
- * Build a factual discount/coupon reply from live catalog + published codes only.
- * This path does not ask the model to invent deals.
- */
 function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) {
   const product = findReferencedProduct(text, catalog, previousHandles);
   const published = Array.isArray(coupons) ? coupons : [];
@@ -649,19 +1035,393 @@ function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) 
   };
 }
 
+function formatProductFact(item, index) {
+  const saleBit = item.compare_at_price
+    ? ` | compare_at: $${item.compare_at_price}`
+    : "";
+  const notesBit = item.notes ? ` | notes: ${item.notes}` : "";
+  const ingredientsBit = item.ingredients
+    ? ` | ingredients: ${item.ingredients}`
+    : "";
+  const longevityBit = item.longevity ? ` | longevity: ${item.longevity}` : "";
+  const genderBit = item.gender ? ` | gender: ${item.gender}` : "";
+  const occasionBit = item.occasion ? ` | occasion: ${item.occasion}` : "";
+  const inventoryBit =
+    item.inventory_quantity == null
+      ? ""
+      : ` | inventory_qty: ${item.inventory_quantity}`;
+  const collectionsBit = item.collections?.length
+    ? ` | collections: ${item.collections.join(", ")}`
+    : "";
+  const variantsBit = item.variants?.length
+    ? ` | variants: ${item.variants
+        .map(
+          (entry) =>
+            `${entry.title} $${entry.price || "n/a"} (${
+              entry.available ? "in stock" : "out of stock"
+            })`
+        )
+        .join("; ")}`
+    : "";
+  const metafieldBits = item.metafields
+    ? Object.entries(item.metafields)
+        .filter(([key, value]) => value && !/(notes|ingredient|longevity|gender|occasion)/i.test(key))
+        .slice(0, 8)
+        .map(([key, value]) => `${key}=${String(value).slice(0, 80)}`)
+        .join("; ")
+    : "";
+
+  return `${index + 1}. ${item.title} | handle: ${item.handle} | type: ${
+    item.type || "product"
+  } | tags: ${item.tags || "n/a"} | price: $${item.price || "n/a"}${saleBit} | available: ${
+    item.available ? "yes" : "no"
+  }${inventoryBit} | url: ${item.url || "n/a"}${notesBit}${ingredientsBit}${longevityBit}${genderBit}${occasionBit}${collectionsBit}${variantsBit}${
+    metafieldBits ? ` | metafields: ${metafieldBits}` : ""
+  } | description: ${item.description || item.summary || "n/a"}`;
+}
+
 function formatCatalog(catalog) {
   if (!catalog.length) return "LIVE CN1 CATALOG: no products available.";
   return [
     "LIVE CN1 CATALOG (recommend only from this list):",
-    ...catalog.map((item, index) => {
-      const priceBit = item.price ? `price: $${item.price}` : "price: n/a";
-      const saleBit = item.compare_at_price
-        ? ` sale was $${item.compare_at_price}`
-        : "";
-      const stockBit = item.available === false ? "out of stock" : "in stock";
-      return `${index + 1}. ${item.title} | handle: ${item.handle} | ${item.type || "product"} | ${item.vendor} | ${item.tags} | ${priceBit}${saleBit} | ${stockBit} | ${item.summary}`;
-    }),
+    ...catalog.map((item, index) => formatProductFact(item, index)),
   ].join("\n");
+}
+
+function scoreProduct(product, terms) {
+  const metafieldText = product.metafields
+    ? Object.values(product.metafields).join(" ")
+    : "";
+  const hay = [
+    product.title,
+    product.handle,
+    product.type,
+    product.tags,
+    product.summary,
+    product.description,
+    product.notes,
+    product.ingredients,
+    product.longevity,
+    product.gender,
+    product.occasion,
+    metafieldText,
+    (product.collections || []).join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  let score = 0;
+  for (const term of terms) {
+    if (!term) continue;
+    if (hay.includes(term)) score += term.length > 4 ? 3 : 2;
+  }
+  if (product.available) score += 1;
+  if (product.compare_at_price) score += 0.5;
+  return score;
+}
+
+function searchCatalog(catalog, searchTerms, text, limit = 12) {
+  const terms = [
+    ...(Array.isArray(searchTerms) ? searchTerms : []),
+    ...String(text || "")
+      .toLowerCase()
+      .split(/[^a-z0-9$]+/)
+      .filter((word) => word.length > 2),
+  ]
+    .map((term) => String(term || "").toLowerCase().trim())
+    .filter(Boolean);
+
+  const uniqueTerms = [...new Set(terms)].slice(0, 16);
+  if (!uniqueTerms.length) return (catalog || []).slice(0, limit);
+
+  return [...(catalog || [])]
+    .map((product) => ({ product, score: scoreProduct(product, uniqueTerms) }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => row.product);
+}
+
+function filterByBudget(catalog, text) {
+  const match = String(text || "").match(
+    /(?:under|below|less than|budget(?: of)?|max(?:imum)?)\s*\$?\s*(\d+(?:\.\d+)?)/i
+  );
+  if (!match) return catalog;
+  const max = Number(match[1]);
+  if (!Number.isFinite(max)) return catalog;
+  return catalog.filter((item) => Number(item.price) > 0 && Number(item.price) <= max);
+}
+
+function classifyIntentHeuristic(text, previousHandles) {
+  const value = String(text || "").trim();
+  const lower = value.toLowerCase();
+
+  if (!looksLikeScentQuery(value)) {
+    return {
+      query_type: "greeting",
+      needs_catalog: false,
+      needs_policies: false,
+      needs_discounts: false,
+      focus_previous: false,
+      search_terms: [],
+    };
+  }
+
+  const focusPrevious =
+    /\b(this|that|it|the (?:one|product|perfume|scent)|previous|same one)\b/i.test(
+      lower
+    ) && previousHandles.length > 0;
+
+  if (isDiscountQuestion(value)) {
+    return {
+      query_type: "discount",
+      needs_catalog: true,
+      needs_policies: false,
+      needs_discounts: true,
+      focus_previous: focusPrevious || previousHandles.length > 0,
+      search_terms: [],
+    };
+  }
+
+  if (/\b(ship(ping)?|delivery|how long.*arrive|tracking)\b/i.test(lower)) {
+    return {
+      query_type: "shipping",
+      needs_catalog: false,
+      needs_policies: true,
+      needs_discounts: false,
+      focus_previous: false,
+      search_terms: [],
+    };
+  }
+
+  if (/\b(return|refund|exchange|money back)\b/i.test(lower)) {
+    return {
+      query_type: "returns",
+      needs_catalog: false,
+      needs_policies: true,
+      needs_discounts: false,
+      focus_previous: false,
+      search_terms: [],
+    };
+  }
+
+  if (/\b(compare|difference|vs\.?|versus)\b/i.test(lower)) {
+    return {
+      query_type: "compare",
+      needs_catalog: true,
+      needs_policies: false,
+      needs_discounts: false,
+      focus_previous: focusPrevious,
+      search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 8),
+    };
+  }
+
+  if (
+    /\b(price|cost|how much|available|in stock|notes?|ingredients?|longevity|last|unisex|gender|similar|cheaper|another option|lighter|stronger)\b/i.test(
+      lower
+    )
+  ) {
+    return {
+      query_type: "product_info",
+      needs_catalog: true,
+      needs_policies: false,
+      needs_discounts: false,
+      focus_previous: focusPrevious || previousHandles.length > 0,
+      search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 8),
+    };
+  }
+
+  if (
+    /\b(suggest|recommend|looking for|want|need|best for|everyday|date|summer|winter|fresh|citrus|vanilla|woody|floral|under\s*\$?\d+|should i buy|don'?t like|do not like)\b/i.test(
+      lower
+    )
+  ) {
+    return {
+      query_type: "recommend",
+      needs_catalog: true,
+      needs_policies: false,
+      needs_discounts: false,
+      focus_previous: /\bsimilar to this\b/i.test(lower) || focusPrevious,
+      search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 8),
+    };
+  }
+
+  return {
+    query_type: "chat",
+    needs_catalog: true,
+    needs_policies: false,
+    needs_discounts: false,
+    focus_previous: focusPrevious,
+    search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 8),
+  };
+}
+
+function normalizeClassification(data, text, previousHandles) {
+  const fallback = classifyIntentHeuristic(text, previousHandles);
+  if (!data || typeof data !== "object") return fallback;
+
+  const allowed = [
+    "greeting",
+    "recommend",
+    "product_info",
+    "discount",
+    "shipping",
+    "returns",
+    "compare",
+    "chat",
+    "off_topic",
+  ];
+  const queryType = allowed.includes(data.query_type)
+    ? data.query_type
+    : fallback.query_type;
+
+  return {
+    query_type: queryType,
+    needs_catalog: Boolean(
+      data.needs_catalog ??
+        ["recommend", "product_info", "discount", "compare", "chat"].includes(
+          queryType
+        )
+    ),
+    needs_policies: Boolean(
+      data.needs_policies ??
+        ["shipping", "returns"].includes(queryType)
+    ),
+    needs_discounts: Boolean(
+      data.needs_discounts ?? queryType === "discount"
+    ),
+    focus_previous: Boolean(data.focus_previous ?? fallback.focus_previous),
+    search_terms: Array.isArray(data.search_terms)
+      ? data.search_terms.map((term) => String(term || "").trim()).filter(Boolean).slice(0, 10)
+      : fallback.search_terms,
+  };
+}
+
+async function classifyIntent(openai, text, history, previousHandles) {
+  const heuristic = classifyIntentHeuristic(text, previousHandles);
+  // Skip model call for obvious greetings / discount (discount uses factual path).
+  if (heuristic.query_type === "greeting" || heuristic.query_type === "discount") {
+    return heuristic;
+  }
+
+  try {
+    const historyLines = (history || [])
+      .slice(-4)
+      .map(
+        (item) =>
+          `${item.role === "assistant" ? "Concierge" : "Shopper"}: ${item.content}`
+      )
+      .join("\n");
+
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0,
+      max_tokens: 120,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: CLASSIFY_INSTRUCTIONS },
+        {
+          role: "user",
+          content: [
+            historyLines ? `Recent conversation:\n${historyLines}` : "",
+            previousHandles.length
+              ? `Recently recommended handles: ${previousHandles.join(", ")}`
+              : "",
+            `Shopper: ${text}`,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      ],
+    });
+
+    return normalizeClassification(
+      extractJson(completion.choices[0]?.message?.content),
+      text,
+      previousHandles
+    );
+  } catch (err) {
+    console.error("Intent classify failed:", err?.message || err);
+    return heuristic;
+  }
+}
+
+async function gatherStoreData({
+  classification,
+  text,
+  previousHandles,
+}) {
+  const facts = {
+    catalog: [],
+    focused: null,
+    policies: "",
+    coupons: [],
+    discountFacts: "",
+  };
+
+  let catalog = [];
+  if (classification.needs_catalog || classification.needs_discounts) {
+    catalog = await loadFullCatalog().catch(() => []);
+  }
+
+  if (classification.needs_policies) {
+    facts.policies = await loadStoreContext(catalog).catch(() => "");
+  }
+
+  if (classification.needs_discounts) {
+    facts.coupons = await loadPublishedCoupons().catch(() => []);
+    const saleItems = catalog.filter(productHasSale).slice(0, 8);
+    facts.discountFacts = [
+      facts.coupons.length
+        ? `Published coupon codes: ${facts.coupons
+            .map((item) => `${item.code} (${item.detail})`)
+            .join("; ")}`
+        : "Published coupon codes: none found via configured Shopify discount data/API.",
+      saleItems.length
+        ? `Live sale prices: ${saleItems
+            .map(
+              (item) =>
+                `${item.title} (handle: ${item.handle}) $${item.price} was $${item.compare_at_price}`
+            )
+            .join("; ")}`
+        : "Live sale prices: none in catalog.",
+    ].join("\n");
+  }
+
+  if (classification.needs_catalog) {
+    let matches = searchCatalog(
+      catalog,
+      classification.search_terms,
+      text,
+      classification.query_type === "compare" ? 8 : 12
+    );
+    matches = filterByBudget(matches.length ? matches : catalog, text);
+
+    if (!matches.length && catalog.length) {
+      matches = filterByBudget(catalog, text).slice(0, 12);
+    }
+
+    const focused = classification.focus_previous
+      ? findReferencedProduct(text, catalog, previousHandles)
+      : findReferencedProduct(text, catalog, []);
+
+    if (focused && !matches.some((item) => item.handle === focused.handle)) {
+      matches = [focused, ...matches].slice(0, 12);
+    }
+
+    // Keep previously discussed products available for follow-ups.
+    for (const handle of [...previousHandles].reverse()) {
+      const item = catalog.find((product) => product.handle === handle);
+      if (item && !matches.some((row) => row.handle === item.handle)) {
+        matches.push(item);
+      }
+    }
+
+    facts.catalog = matches.slice(0, 14);
+    facts.focused = focused;
+  }
+
+  return facts;
 }
 
 function bindToCatalog(payload, catalog) {
@@ -695,8 +1455,6 @@ function bindToCatalog(payload, catalog) {
     };
   }
 
-  // Do not force a random first catalog product when the model had no valid match.
-  // Preserve a helpful chat answer (e.g. "we don't carry hand lotion").
   if (payload.intent === "recommend") {
     return {
       ...payload,
@@ -712,8 +1470,52 @@ function bindToCatalog(payload, catalog) {
   return { ...payload, title: "", handle: "" };
 }
 
-function buildUserPrompt({ text, history, previousHandles, catalog, storeContext }) {
-  const lines = [formatCatalog(catalog), "", storeContext || "", ""];
+function buildAnswerPrompt({
+  text,
+  history,
+  previousHandles,
+  classification,
+  storeFacts,
+}) {
+  const lines = [
+    `Query type: ${classification.query_type}`,
+    "",
+    "STORE DATA FACTS (source of truth — do not invent beyond this):",
+  ];
+
+  if (storeFacts.focused) {
+    lines.push("Focused product:");
+    lines.push(formatProductFact(storeFacts.focused, 0));
+    lines.push("");
+  }
+
+  if (storeFacts.catalog?.length) {
+    lines.push("Relevant Shopify products:");
+    storeFacts.catalog.forEach((item, index) => {
+      lines.push(formatProductFact(item, index));
+    });
+    lines.push("");
+  } else if (classification.needs_catalog) {
+    lines.push("Relevant Shopify products: none matched / catalog unavailable.");
+    lines.push("");
+  }
+
+  if (storeFacts.discountFacts) {
+    lines.push("REAL DISCOUNT FACTS:");
+    lines.push(storeFacts.discountFacts);
+    lines.push("");
+  }
+
+  if (storeFacts.policies) {
+    lines.push(storeFacts.policies);
+    lines.push("");
+  }
+
+  if (!classification.needs_catalog && !classification.needs_policies && !classification.needs_discounts) {
+    lines.push("No Shopify fetch required for this message.");
+    lines.push("");
+  }
+
   if (history.length) {
     lines.push("Recent conversation:");
     history.forEach((item) => {
@@ -723,15 +1525,14 @@ function buildUserPrompt({ text, history, previousHandles, catalog, storeContext
     });
     lines.push("");
   }
+
   if (previousHandles.length) {
     lines.push(
-      `Recently recommended product handles (for follow-up coupon/product questions): ${previousHandles.join(", ")}`
-    );
-    lines.push(
-      `If suggesting another product, prefer a different handle than: ${previousHandles.join(", ")}`
+      `Recently recommended product handles: ${previousHandles.join(", ")}`
     );
     lines.push("");
   }
+
   lines.push(`Shopper: ${text}`);
   return lines.join("\n");
 }
@@ -832,6 +1633,13 @@ module.exports = async (req, res) => {
       max_input_words: MAX_INPUT_WORDS,
       history_limit: HISTORY_LIMIT,
       max_output_tokens: MAX_OUTPUT_TOKENS,
+      architecture: "openai-intent-then-shopify-facts",
+      shopify_auth: hasShopifyClientCredentials()
+        ? "client_credentials"
+        : String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim()
+          ? "static_admin_token"
+          : "storefront_public_only",
+      shopify_shop: getShopifyShop() || null,
     });
   }
 
@@ -861,7 +1669,6 @@ module.exports = async (req, res) => {
   }
 
   const text = cleanText(rawText);
-
   const sessionId = sanitizeSession(body.session_id);
   const sessionQuota = getQuota(sessionId ? "s:" + sessionId : "ip:" + ip);
   const ipQuota = getQuota("ip:" + ip);
@@ -881,22 +1688,24 @@ module.exports = async (req, res) => {
   const history = sanitizeHistory(body.history);
   const previousHandles = sanitizeHandles(body.previous_handles);
 
-  // Always load live Shopify catalog + store policies for shopping questions
-  // (products, pricing, coupons/deals, shipping). Skip only pure greetings.
-  const catalog = looksLikeScentQuery(text)
-    ? await loadFullCatalog().catch(() => [])
-    : [];
-  const storeContext = looksLikeScentQuery(text)
-    ? await loadStoreContext(catalog).catch(() => "")
-    : "";
-
   sessionQuota.count += 1;
   if (ipQuota !== sessionQuota) ipQuota.count += 1;
 
   try {
-    // Discount/coupon questions use live catalog sale prices + published codes only.
-    // Skip the model so it cannot invent fake coupons or discounts.
-    if (isDiscountQuestion(text)) {
+    const openai = getOpenAIClient();
+
+    // 1) OpenAI (or heuristic fallback) determines intent
+    const classification = await classifyIntent(
+      openai,
+      text,
+      history,
+      previousHandles
+    );
+
+    // 2) Shopify only when store data is needed
+    // Discount path stays factual to prevent invented coupon codes.
+    if (classification.query_type === "discount" || isDiscountQuestion(text)) {
+      const catalog = await loadFullCatalog().catch(() => []);
       const coupons = await loadPublishedCoupons().catch(() => []);
       const payload = buildFactualDiscountReply({
         text,
@@ -910,18 +1719,30 @@ module.exports = async (req, res) => {
       });
     }
 
-    const prompt = buildUserPrompt({
+    const storeFacts = await gatherStoreData({
+      classification,
+      text,
+      previousHandles,
+    });
+
+    // 3) OpenAI generates the final answer from retrieved facts + history
+    const prompt = buildAnswerPrompt({
       text,
       history,
       previousHandles,
-      catalog,
-      storeContext,
+      classification,
+      storeFacts,
     });
-    const openai = getOpenAIClient();
+
+    const bindPool = [
+      ...(storeFacts.focused ? [storeFacts.focused] : []),
+      ...(storeFacts.catalog || []),
+    ];
     const payload = bindToCatalog(
       normalizePayload(await recommend(openai, prompt)),
-      catalog
+      bindPool
     );
+
     return res.status(200).json({
       ...payload,
       remaining: Math.max(0, MAX_ASKS - sessionQuota.count),
@@ -968,4 +1789,15 @@ module.exports._test = {
   findReferencedProduct,
   productHasSale,
   buildFactualDiscountReply,
+  classifyIntentHeuristic,
+  normalizeClassification,
+  searchCatalog,
+  filterByBudget,
+  scoreProduct,
+  hasShopifyClientCredentials,
+  hasShopifyAdminAuth,
+  getShopifyShop,
+  metafieldMap,
+  pickMetafield,
+  mapAdminProduct,
 };
