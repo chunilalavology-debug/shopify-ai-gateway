@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Scent Finder Gateway</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1a1009;
+        --muted: #6b5c52;
+        --line: #ede8e4;
+        --coral: #ef4932;
+        --bg: #fffcfa;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(ellipse 900px 500px at 10% 0%, rgba(239, 73, 50, 0.12), transparent 55%),
+          linear-gradient(160deg, #fffcfa 0%, #fff7f3 100%);
+      }
+      main {
+        width: min(100%, 560px);
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px 24px;
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.07);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.35rem;
+      }
+      p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-weight: 600;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #d1d5db;
+      }
+      .dot.ok { background: #22c55e; }
+      .dot.err { background: #ef4444; }
+      code, pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      pre {
+        margin: 0;
+        padding: 12px;
+        overflow: auto;
+        border-radius: 10px;
+        background: #faf7f5;
+        border: 1px solid var(--line);
+        color: #374151;
+      }
+      a {
+        color: var(--coral);
+        font-weight: 600;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AI Scent Finder Gateway is running.</h1>
+      <p>
+        This is the server-side Shopify + OpenAI gateway.
+        No OAuth callback is required for the client-credentials store setup.
+      </p>
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="label">Checking API…</span>
+      </div>
+      <p>
+        Endpoint:
+        <a href="/api/recommend"><code>/api/recommend</code></a>
+      </p>
+      <pre id="details">Loading status…</pre>
+    </main>
+    <script>
+      (async function () {
+        const dot = document.getElementById("dot");
+        const label = document.getElementById("label");
+        const details = document.getElementById("details");
+        try {
+          const res = await fetch("/api/recommend", { headers: { Accept: "application/json" } });
+          const data = await res.json();
+          const ok = res.ok && data && data.ok;
+          dot.className = "dot " + (ok ? "ok" : "err");
+          label.textContent = ok ? "API status: online" : "API status: error";
+          details.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          dot.className = "dot err";
+          label.textContent = "API status: unreachable";
+          details.textContent = String(err && err.message ? err.message : err);
+        }
+      })();
+    </script>
+  </body>
+</html>
