@@ -15,52 +15,55 @@
     --sf-muted: #6b7280;
     --sf-line: #e5e7eb;
     --sf-glass: #ffffff;
-    --sf-bg-1: #eef2ff;
-    --sf-bg-2: #fff7ed;
-    --sf-bg-3: #f8fafc;
-    --sf-mood-hex: #d7ecec;
+    /* SaaS dark palette — glow color vars */
+    --sf-bg-glow-1: rgba(99, 102, 241, 0.28);
+    --sf-bg-glow-2: rgba(239, 91, 74, 0.22);
+    --sf-bg-glow-3: rgba(168, 85, 247, 0.2);
+    --sf-mood-hex: rgba(99, 102, 241, 0.4);
     --header-offset: var(--header-height, 72px);
     position: relative;
     width: 100%;
     min-height: calc(100svh - var(--header-offset));
     overflow: hidden;
     background:
-      radial-gradient(1200px 700px at 12% -10%, var(--sf-bg-1), transparent 58%),
-      radial-gradient(900px 620px at 100% 0%, var(--sf-bg-2), transparent 52%),
-      linear-gradient(160deg, var(--sf-bg-1) 0%, var(--sf-bg-2) 48%, var(--sf-bg-3) 100%);
+      radial-gradient(ellipse 1400px 900px at 10% -15%, var(--sf-bg-glow-1), transparent 55%),
+      radial-gradient(ellipse 1000px 700px at 96% 5%, var(--sf-bg-glow-2), transparent 50%),
+      radial-gradient(ellipse 700px 500px at 45% 108%, var(--sf-bg-glow-3), transparent 55%),
+      linear-gradient(160deg, #0c0f1f 0%, #12163a 50%, #0a0c1a 100%);
     color: var(--sf-ink);
     font-family: "Poppins", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
     transition: background 0.8s ease;
   }
 
+  /* Mood colour shifts — keep dark base, change glow tints */
   .scent-finder-app[data-mood="fresh"] {
-    --sf-bg-1: #d4f1ef;
-    --sf-bg-2: #e8f6d9;
-    --sf-bg-3: #cfe8f4;
+    --sf-bg-glow-1: rgba(20, 184, 166, 0.28);
+    --sf-bg-glow-2: rgba(34, 197, 94, 0.18);
+    --sf-bg-glow-3: rgba(6, 182, 212, 0.22);
   }
 
   .scent-finder-app[data-mood="amber"] {
-    --sf-bg-1: #f3ddc4;
-    --sf-bg-2: #e8c39a;
-    --sf-bg-3: #f6e6d2;
+    --sf-bg-glow-1: rgba(245, 158, 11, 0.3);
+    --sf-bg-glow-2: rgba(239, 91, 74, 0.25);
+    --sf-bg-glow-3: rgba(217, 119, 6, 0.2);
   }
 
   .scent-finder-app[data-mood="night"] {
-    --sf-bg-1: #e4d4d1;
-    --sf-bg-2: #cbb7b8;
-    --sf-bg-3: #d9c7d4;
+    --sf-bg-glow-1: rgba(139, 92, 246, 0.3);
+    --sf-bg-glow-2: rgba(236, 72, 153, 0.2);
+    --sf-bg-glow-3: rgba(99, 102, 241, 0.25);
   }
 
   .scent-finder-app[data-mood="floral"] {
-    --sf-bg-1: #f3dce4;
-    --sf-bg-2: #e8d0dc;
-    --sf-bg-3: #f7e8ef;
+    --sf-bg-glow-1: rgba(236, 72, 153, 0.28);
+    --sf-bg-glow-2: rgba(168, 85, 247, 0.22);
+    --sf-bg-glow-3: rgba(244, 63, 94, 0.18);
   }
 
   .scent-finder-app[data-mood="custom"] {
-    --sf-bg-1: var(--sf-mood-hex);
-    --sf-bg-2: #f4e4d4;
-    --sf-bg-3: #e5efe4;
+    --sf-bg-glow-1: var(--sf-mood-hex);
+    --sf-bg-glow-2: rgba(239, 91, 74, 0.2);
+    --sf-bg-glow-3: rgba(168, 85, 247, 0.18);
   }
 
   .scent-finder-app button,
@@ -82,55 +85,59 @@
     position: absolute;
     inset: -20%;
     background:
-      radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.4), transparent 32%),
-      radial-gradient(circle at 80% 30%, rgba(229, 107, 93, 0.16), transparent 28%),
-      radial-gradient(circle at 50% 90%, rgba(90, 140, 110, 0.16), transparent 34%);
+      radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.04), transparent 32%),
+      radial-gradient(circle at 80% 30%, rgba(99, 102, 241, 0.12), transparent 28%),
+      radial-gradient(circle at 50% 90%, rgba(168, 85, 247, 0.1), transparent 34%);
     animation: sfMeshDrift 22s ease-in-out infinite alternate;
   }
 
   .scent-finder-app .sf-orb {
     position: absolute;
     border-radius: 50%;
-    filter: blur(8px);
-    opacity: 0.85;
+    filter: blur(72px);
+    opacity: 1;
     animation: sfOrbFloat 16s ease-in-out infinite;
   }
 
+  /* Indigo glow — top right */
   .scent-finder-app .sf-orb-a {
-    width: min(42vw, 460px);
-    height: min(42vw, 460px);
-    right: -8%;
-    top: 8%;
-    background: radial-gradient(circle, rgba(232, 122, 108, 0.55) 0%, rgba(232, 122, 108, 0) 68%);
+    width: min(52vw, 580px);
+    height: min(52vw, 580px);
+    right: -12%;
+    top: -5%;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.55) 0%, rgba(99, 102, 241, 0) 70%);
     animation-duration: 18s;
   }
 
+  /* Coral brand glow — bottom left */
   .scent-finder-app .sf-orb-b {
-    width: min(38vw, 420px);
-    height: min(38vw, 420px);
-    left: -10%;
-    bottom: -12%;
-    background: radial-gradient(circle, rgba(92, 150, 122, 0.5) 0%, rgba(92, 150, 122, 0) 70%);
+    width: min(46vw, 500px);
+    height: min(46vw, 500px);
+    left: -14%;
+    bottom: -15%;
+    background: radial-gradient(circle, rgba(239, 91, 74, 0.45) 0%, rgba(239, 91, 74, 0) 70%);
     animation-duration: 21s;
     animation-delay: -4s;
   }
 
+  /* Violet glow — top centre */
   .scent-finder-app .sf-orb-c {
-    width: min(28vw, 280px);
-    height: min(28vw, 280px);
-    left: 38%;
-    top: -8%;
-    background: radial-gradient(circle, rgba(255, 214, 170, 0.55) 0%, rgba(255, 214, 170, 0) 70%);
+    width: min(32vw, 340px);
+    height: min(32vw, 340px);
+    left: 36%;
+    top: -10%;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.5) 0%, rgba(168, 85, 247, 0) 70%);
     animation-duration: 14s;
     animation-delay: -7s;
   }
 
+  /* Rose glow — bottom right */
   .scent-finder-app .sf-orb-d {
-    width: min(24vw, 240px);
-    height: min(24vw, 240px);
-    right: 18%;
-    bottom: 6%;
-    background: radial-gradient(circle, rgba(164, 196, 220, 0.5) 0%, rgba(164, 196, 220, 0) 70%);
+    width: min(28vw, 300px);
+    height: min(28vw, 300px);
+    right: 16%;
+    bottom: 4%;
+    background: radial-gradient(circle, rgba(244, 63, 94, 0.38) 0%, rgba(244, 63, 94, 0) 70%);
     animation-duration: 19s;
     animation-delay: -2s;
   }
@@ -170,7 +177,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: rgba(27, 23, 20, 0.38);
+    color: rgba(255, 255, 255, 0.38);
     font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.04em;
@@ -184,15 +191,16 @@
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: #fff;
-    border: 1px solid var(--sf-line);
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     font-size: 12px;
     font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
     transition: background 0.3s ease, color 0.3s ease, transform 0.3s ease;
   }
 
   .scent-finder-app .sf-progress-step.is-active {
-    color: var(--sf-ink);
+    color: rgba(255, 255, 255, 0.92);
   }
 
   .scent-finder-app .sf-progress-step.is-active span,
@@ -204,7 +212,7 @@
   }
 
   .scent-finder-app .sf-progress-step.is-complete {
-    color: rgba(27, 23, 20, 0.55);
+    color: rgba(255, 255, 255, 0.45);
   }
 
   .scent-finder-app .sf-progress-line {
@@ -212,7 +220,7 @@
     height: 2px;
     max-width: 72px;
     border-radius: 2px;
-    background: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.12);
     overflow: hidden;
   }
 
@@ -883,7 +891,7 @@
     left: 50%;
     z-index: 10;
     transform: translateX(-50%);
-    color: rgba(27, 23, 20, 0.38);
+    color: rgba(255, 255, 255, 0.22);
     font-size: 10px;
     font-weight: 500;
     letter-spacing: .12em;
@@ -985,25 +993,25 @@
           </svg>
         </div>
         <p class="sf-kicker">Step 1 of 3</p>
-        <h1 class="landing-title">Try our <strong>AI Scent Finder</strong></h1>
+        <h1 class="landing-title">{{ section.settings.step1_heading_prefix | default: 'Try our ' }}<strong>{{ section.settings.step1_heading_bold | default: 'AI Scent Finder' }}</strong></h1>
 
         <p class="landing-question">
-          <span>What are <strong>you looking for today?</strong></span>
+          <span>{{ section.settings.step1_question_prefix | default: 'What are ' }}<strong>{{ section.settings.step1_question_bold | default: 'you looking for today?' }}</strong></span>
           <span class="info-dot" title="Tell us about the mood, occasion, ingredient, or fragrance you're looking for.">i</span>
         </p>
 
         <div class="landing-options">
-          <button type="button" class="landing-option" data-query="A scent with amber notes">A scent with amber notes</button>
-          <button type="button" class="landing-option" data-query="A perfume to wear to weekend brunch">A perfume to wear to weekend brunch</button>
-          <button type="button" class="landing-option" data-query="Smell like Tom Ford's Tobacco Vanille">Smell like Tom Ford's Tobacco Vanille</button>
-          <button type="button" class="landing-option" data-query="Perfume that makes me feel sexy">Perfume that makes me feel sexy</button>
+          <button type="button" class="landing-option" data-query="{{ section.settings.option1_query | default: 'A scent with amber notes' | escape }}">{{ section.settings.option1_label | default: 'A scent with amber notes' }}</button>
+          <button type="button" class="landing-option" data-query="{{ section.settings.option2_query | default: 'A perfume to wear to weekend brunch' | escape }}">{{ section.settings.option2_label | default: 'A perfume to wear to weekend brunch' }}</button>
+          <button type="button" class="landing-option" data-query="{{ section.settings.option3_query | default: "Smell like Tom Ford's Tobacco Vanille" | escape }}">{{ section.settings.option3_label | default: "Smell like Tom Ford's Tobacco Vanille" }}</button>
+          <button type="button" class="landing-option" data-query="{{ section.settings.option4_query | default: 'Perfume that makes me feel sexy' | escape }}">{{ section.settings.option4_label | default: 'Perfume that makes me feel sexy' }}</button>
         </div>
 
         <div class="landing-input">
           <input
             type="text"
             id="landing-query-{{ section.id }}"
-            placeholder="Or type what you are looking for"
+            placeholder="{{ section.settings.step1_placeholder | default: 'Or type what you are looking for' | escape }}"
             autocomplete="off"
             maxlength="500"
             aria-label="What are you looking for?"
@@ -1021,8 +1029,8 @@
           </svg>
         </div>
         <p class="sf-kicker">Step 2 of 3</p>
-        <h2 class="email-title">Let's help you discover <strong>Fragrances tailored to you.</strong></h2>
-        <p class="email-subtitle">Please enter your email to get started.</p>
+        <h2 class="email-title">{{ section.settings.step2_heading_prefix | default: "Let's help you discover " }}<strong>{{ section.settings.step2_heading_bold | default: 'Fragrances tailored to you.' }}</strong></h2>
+        <p class="email-subtitle">{{ section.settings.step2_subtitle | default: 'Please enter your email to get started.' }}</p>
 
         <div class="email-input">
           <input
@@ -1615,6 +1623,119 @@
   "tag": "section",
   "class": "ai-scent-finder-section",
   "settings": [
+    {
+      "type": "header",
+      "content": "Step 1 — Heading"
+    },
+    {
+      "type": "text",
+      "id": "step1_heading_prefix",
+      "label": "Heading — normal text",
+      "default": "Try our "
+    },
+    {
+      "type": "text",
+      "id": "step1_heading_bold",
+      "label": "Heading — bold text",
+      "default": "AI Scent Finder"
+    },
+    {
+      "type": "text",
+      "id": "step1_question_prefix",
+      "label": "Sub-question — normal text",
+      "default": "What are "
+    },
+    {
+      "type": "text",
+      "id": "step1_question_bold",
+      "label": "Sub-question — bold text",
+      "default": "you looking for today?"
+    },
+    {
+      "type": "text",
+      "id": "step1_placeholder",
+      "label": "Input placeholder",
+      "default": "Or type what you are looking for"
+    },
+    {
+      "type": "header",
+      "content": "Step 1 — Quick Option Buttons"
+    },
+    {
+      "type": "text",
+      "id": "option1_label",
+      "label": "Option 1 — button label",
+      "default": "A scent with amber notes"
+    },
+    {
+      "type": "text",
+      "id": "option1_query",
+      "label": "Option 1 — AI query",
+      "default": "A scent with amber notes",
+      "info": "The exact text sent to the AI when this button is clicked."
+    },
+    {
+      "type": "text",
+      "id": "option2_label",
+      "label": "Option 2 — button label",
+      "default": "A perfume to wear to weekend brunch"
+    },
+    {
+      "type": "text",
+      "id": "option2_query",
+      "label": "Option 2 — AI query",
+      "default": "A perfume to wear to weekend brunch"
+    },
+    {
+      "type": "text",
+      "id": "option3_label",
+      "label": "Option 3 — button label",
+      "default": "Smell like Tom Ford's Tobacco Vanille"
+    },
+    {
+      "type": "text",
+      "id": "option3_query",
+      "label": "Option 3 — AI query",
+      "default": "Smell like Tom Ford's Tobacco Vanille"
+    },
+    {
+      "type": "text",
+      "id": "option4_label",
+      "label": "Option 4 — button label",
+      "default": "Perfume that makes me feel sexy"
+    },
+    {
+      "type": "text",
+      "id": "option4_query",
+      "label": "Option 4 — AI query",
+      "default": "Perfume that makes me feel sexy"
+    },
+    {
+      "type": "header",
+      "content": "Step 2 — Email"
+    },
+    {
+      "type": "text",
+      "id": "step2_heading_prefix",
+      "label": "Heading — normal text",
+      "default": "Let's help you discover "
+    },
+    {
+      "type": "text",
+      "id": "step2_heading_bold",
+      "label": "Heading — bold text",
+      "default": "Fragrances tailored to you."
+    },
+    {
+      "type": "text",
+      "id": "step2_subtitle",
+      "label": "Subtitle",
+      "default": "Please enter your email to get started."
+    },
+    {
+      "type": "header",
+      "content": "Advanced"
+    },
     {
       "type": "text",
       "id": "api_endpoint",
