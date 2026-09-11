@@ -858,57 +858,52 @@ function isValidEmail(value) {
  */
 async function ensureShopifyCustomer(email) {
   const cleaned = String(email || "").trim().toLowerCase();
-  if (!isValidEmail(cleaned) || !hasShopifyAdminAuth()) {
-    return { ok: false, reason: "skipped" };
+  if (!isValidEmail(cleaned)) {
+    return { ok: false, reason: "invalid_email" };
+  }
+  if (!hasShopifyAdminAuth()) {
+    return { ok: false, reason: "missing_shopify_auth" };
   }
 
   const tags = ["AI Scent Finder", "email-marketing-consent", "newsletter"];
+  const hint =
+    "Ensure app scopes include write_customers + read_customers, release/install the app version, and enable Protected customer data access for Customer email.";
 
-  try {
-    const existing = await shopifyAdminGraphql(
-      `query CustomerByEmail($q: String!) {
-        customers(first: 1, query: $q) {
-          nodes { id email tags }
-        }
-      }`,
-      { q: `email:${cleaned}` }
-    );
-
-    const found = existing?.customers?.nodes?.[0];
-    if (found?.id) {
-      const mergedTags = Array.from(
-        new Set([...(found.tags || []), ...tags].map((tag) => String(tag).trim()).filter(Boolean))
-      );
-      const updated = await shopifyAdminGraphql(
-        `mutation customerUpdate($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id email tags }
+  async function setMarketingConsent(customerId) {
+    try {
+      const consent = await shopifyAdminGraphql(
+        `mutation customerEmailMarketingConsentUpdate($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id }
             userErrors { field message }
           }
         }`,
         {
           input: {
-            id: found.id,
-            tags: mergedTags,
+            customerId,
             emailMarketingConsent: {
               marketingState: "SUBSCRIBED",
               marketingOptInLevel: "SINGLE_OPT_IN",
+              consentUpdatedAt: new Date().toISOString(),
             },
           },
         }
       );
-      const errors = updated?.customerUpdate?.userErrors || [];
+      const errors =
+        consent?.customerEmailMarketingConsentUpdate?.userErrors || [];
       if (errors.length) {
-        console.warn("customerUpdate errors:", errors);
-        return { ok: false, reason: "update_errors", errors };
+        console.warn("marketing consent errors:", errors);
+        return { ok: false, errors };
       }
-      return {
-        ok: true,
-        action: "updated",
-        id: updated?.customerUpdate?.customer?.id || found.id,
-      };
+      return { ok: true };
+    } catch (err) {
+      console.warn("marketing consent failed:", err?.message || err);
+      return { ok: false, error: String(err?.message || err) };
     }
+  }
 
+  // 1) Prefer create first — needs write_customers only
+  try {
     const created = await shopifyAdminGraphql(
       `mutation customerCreate($input: CustomerInput!) {
         customerCreate(input: $input) {
@@ -920,28 +915,87 @@ async function ensureShopifyCustomer(email) {
         input: {
           email: cleaned,
           tags,
-          emailMarketingConsent: {
-            marketingState: "SUBSCRIBED",
-            marketingOptInLevel: "SINGLE_OPT_IN",
-          },
         },
       }
     );
 
-    const errors = created?.customerCreate?.userErrors || [];
-    if (errors.length) {
-      console.warn("customerCreate errors:", errors);
-      return { ok: false, reason: "create_errors", errors };
+    const createErrors = created?.customerCreate?.userErrors || [];
+    const newCustomer = created?.customerCreate?.customer;
+    if (newCustomer?.id && !createErrors.length) {
+      await setMarketingConsent(newCustomer.id);
+      return { ok: true, action: "created", id: newCustomer.id };
     }
 
+    const emailTaken = createErrors.some((err) =>
+      /already|taken|exists|has already been taken/i.test(
+        String(err?.message || "")
+      )
+    );
+    if (!emailTaken && createErrors.length) {
+      return { ok: false, reason: "create_errors", errors: createErrors, hint };
+    }
+  } catch (err) {
+    console.error("customerCreate exception:", err?.message || err);
+  }
+
+  // 2) Existing customer path — needs read_customers
+  try {
+    const existing = await shopifyAdminGraphql(
+      `query CustomerByEmail($q: String!) {
+        customers(first: 1, query: $q) {
+          nodes { id email tags }
+        }
+      }`,
+      { q: "email:" + cleaned }
+    );
+
+    const found = existing?.customers?.nodes?.[0];
+    if (!found?.id) {
+      return { ok: false, reason: "not_created_not_found", hint };
+    }
+
+    const mergedTags = Array.from(
+      new Set(
+        [...(found.tags || []), ...tags]
+          .map((tag) => String(tag).trim())
+          .filter(Boolean)
+      )
+    );
+
+    const updated = await shopifyAdminGraphql(
+      `mutation customerUpdate($input: CustomerInput!) {
+        customerUpdate(input: $input) {
+          customer { id email tags }
+          userErrors { field message }
+        }
+      }`,
+      {
+        input: {
+          id: found.id,
+          tags: mergedTags,
+        },
+      }
+    );
+
+    const updateErrors = updated?.customerUpdate?.userErrors || [];
+    if (updateErrors.length) {
+      return { ok: false, reason: "update_errors", errors: updateErrors, hint };
+    }
+
+    await setMarketingConsent(found.id);
     return {
       ok: true,
-      action: "created",
-      id: created?.customerCreate?.customer?.id || null,
+      action: "updated",
+      id: updated?.customerUpdate?.customer?.id || found.id,
     };
   } catch (err) {
     console.error("ensureShopifyCustomer failed:", err?.message || err);
-    return { ok: false, reason: "exception", error: String(err?.message || err) };
+    return {
+      ok: false,
+      reason: "exception",
+      error: String(err?.message || err),
+      hint,
+    };
   }
 }
 
@@ -1786,15 +1840,15 @@ module.exports = async (req, res) => {
   const previousHandles = sanitizeHandles(body.previous_handles);
   const customerEmail = String(body.email || "").trim().toLowerCase();
 
-  // Persist Step 2 email as a Shopify customer (Admin API). Non-blocking for chat UX.
+  // Must await on Vercel — fire-and-forget is frozen when the response ends.
+  let customerSync = null;
   if (customerEmail) {
-    ensureShopifyCustomer(customerEmail).then((result) => {
-      if (!result?.ok) {
-        console.warn("Shopify customer sync skipped/failed:", result);
-      } else {
-        console.log("Shopify customer sync:", result.action, result.id);
-      }
-    });
+    customerSync = await ensureShopifyCustomer(customerEmail);
+    if (!customerSync?.ok) {
+      console.warn("Shopify customer sync skipped/failed:", customerSync);
+    } else {
+      console.log("Shopify customer sync:", customerSync.action, customerSync.id);
+    }
   }
 
   sessionQuota.count += 1;
@@ -1825,6 +1879,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         ...payload,
         remaining: Math.max(0, MAX_ASKS - sessionQuota.count),
+        customer_sync: customerSync,
       });
     }
 
@@ -1855,6 +1910,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       ...payload,
       remaining: Math.max(0, MAX_ASKS - sessionQuota.count),
+      customer_sync: customerSync,
     });
   } catch (err) {
     sessionQuota.count = Math.max(0, sessionQuota.count - 1);
