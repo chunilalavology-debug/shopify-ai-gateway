@@ -313,6 +313,9 @@ async function getShopifyAccessToken(forceRefresh = false) {
     return shopifyTokenCache.token;
   }
 
+  const clientId = String(process.env.SHOPIFY_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.SHOPIFY_CLIENT_SECRET || "").trim();
+
   if (clientId && clientSecret) {
     let shop = (await resolveShopifyShop()) || getConfiguredShopifyShop();
     if (!shop) {
