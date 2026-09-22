@@ -40,8 +40,9 @@ JSON schema:
 {
   "reply": "natural customer-friendly answer (use short line breaks for product recommendations)",
   "intent": "recommend" | "clarify" | "chat",
-  "title": "exact product title from STORE DATA FACTS, or empty string",
-  "handle": "exact Shopify product handle from STORE DATA FACTS, or empty string",
+  "title": "exact product title from STORE DATA FACTS, or empty string (use for single product)",
+  "handle": "exact Shopify product handle from STORE DATA FACTS, or empty string (use for single product)",
+  "products": [{"title": "exact product title", "handle": "exact product handle"}],
   "bg_color": "#hex mood color"
 }
 
@@ -50,16 +51,13 @@ Hard rules:
 - Prefer metafield values in STORE DATA FACTS for fragrance notes, ingredients, longevity, gender, and occasion when present.
 - If a fact is missing from STORE DATA FACTS, say it is not currently available.
 - Do NOT deflect with generic lines like "We specialize in fragrances..." — answer the question.
-- When recommending, prefer this reply shape:
-  Product Name
-  Price: $XX
-  Why I recommend it: ...
-  Availability: In stock / Out of stock
-  Then set intent to "recommend" with that product's exact title and handle.
+- IMPORTANT: When recommending ONE product: set title + handle, and products = [{title, handle}].
+- IMPORTANT: When recommending MULTIPLE products (e.g. listing a collection, comparing, or showing options): set intent to "recommend", leave title/handle as empty string, and populate the products array with ALL recommended products. Each entry must have exact title and handle from STORE DATA FACTS.
+- Reply shape for multiple products: list each product name with a short reason. Set intent "recommend" and fill products array.
 - For follow-ups ("this one", "that perfume", "something cheaper"), use Focused product / Recently discussed products in the facts.
 - Discount/coupon answers must match REAL DISCOUNT FACTS exactly. Never invent a code.
 - If recommending an alternative, pick a different handle than ones already recommended when possible.
-- Keep reply concise (about 40–90 words). bg_color mood defaults: warm #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.`;
+- Keep reply concise (about 40–120 words for multi-product). bg_color mood defaults: warm #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.`;
 
 const CLASSIFY_INSTRUCTIONS = `Classify the shopper message for a Shopify fragrance store assistant.
 Return ONLY JSON:
@@ -196,7 +194,7 @@ function extractJson(raw) {
 function normalizePayload(data) {
   const intent = ["recommend", "clarify", "chat"].includes(data.intent)
     ? data.intent
-    : data.handle || data.title
+    : data.handle || data.title || (Array.isArray(data.products) && data.products.length)
       ? "recommend"
       : "chat";
 
@@ -216,6 +214,24 @@ function normalizePayload(data) {
       ? data.bg_color.trim()
       : "#c9e2e8";
 
+  // Normalize the products array (multi-product recommendations)
+  const rawProducts = Array.isArray(data.products) ? data.products : [];
+  const products = rawProducts
+    .map((item) => ({
+      title: String(item?.title || "").trim(),
+      handle: String(item?.handle || "")
+        .trim()
+        .replace(/^\/products\//, "")
+        .replace(/[^a-zA-Z0-9-_]/g, ""),
+    }))
+    .filter((item) => item.handle && item.title)
+    .slice(0, 8);
+
+  // If AI gave a single handle but no products array, promote it into products
+  if (intent === "recommend" && handle && !products.length) {
+    if (title) products.push({ title, handle });
+  }
+
   return {
     reply:
       reply ||
@@ -225,6 +241,7 @@ function normalizePayload(data) {
     intent,
     title: intent === "recommend" ? title : "",
     handle: intent === "recommend" ? handle : "",
+    products: intent === "recommend" ? products : [],
     bg_color: bg,
   };
 }
@@ -1653,6 +1670,7 @@ function bindToCatalog(payload, catalog) {
         intent: "chat",
         title: "",
         handle: "",
+        products: [],
         reply:
           payload.reply ||
           "I could not verify that product in the live catalog right now. Ask me about a scent, product type, price, or shipping and I will help from store data.",
@@ -1661,18 +1679,46 @@ function bindToCatalog(payload, catalog) {
     return payload;
   }
 
+  // Bind the products array entries to real catalog items
+  const boundProducts = (payload.products || []).reduce((acc, item) => {
+    const hMatch = catalog.find((p) => p.handle === item.handle);
+    const tMatch = catalog.find(
+      (p) => p.title.toLowerCase() === item.title.toLowerCase()
+    );
+    const found = hMatch || tMatch;
+    if (found && !acc.some((a) => a.handle === found.handle)) {
+      acc.push({ title: found.title, handle: found.handle });
+    }
+    return acc;
+  }, []);
+
+  // Bind single handle/title
   const handleMatch = catalog.find((item) => item.handle === payload.handle);
   const titleMatch = catalog.find(
     (item) =>
       item.title.toLowerCase() === String(payload.title || "").toLowerCase()
   );
   const match = handleMatch || titleMatch;
+
+  // If we have valid bound products, return them
+  if (boundProducts.length) {
+    const primary = match || (boundProducts.length === 1 ? catalog.find(p => p.handle === boundProducts[0].handle) : null);
+    return {
+      ...payload,
+      intent: "recommend",
+      title: primary ? primary.title : "",
+      handle: primary ? primary.handle : "",
+      products: boundProducts,
+    };
+  }
+
   if (match) {
     return {
       ...payload,
       intent: "recommend",
       title: match.title,
       handle: match.handle,
+      products: [{ title: match.title, handle: match.handle }],
     };
   }
 
@@ -1682,13 +1728,14 @@ function bindToCatalog(payload, catalog) {
       intent: "chat",
       title: "",
       handle: "",
+      products: [],
       reply:
         payload.reply ||
         "I could not find an exact catalog match for that. Tell me another product type, scent, or question about the store.",
     };
   }
 
-  return { ...payload, title: "", handle: "" };
+  return { ...payload, title: "", handle: "", products: [] };
 }
 
 function buildAnswerPrompt({

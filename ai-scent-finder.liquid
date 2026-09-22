@@ -597,6 +597,18 @@
     animation: scentFinderProductFadeIn 0.5s ease both;
   }
 
+  /* Multi-product grid */
+  .scent-finder-app .product-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .scent-finder-app .product-grid .product-card {
+    animation-delay: calc(var(--card-index, 0) * 0.09s);
+  }
+
   @keyframes scentFinderProductFadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -1279,22 +1291,26 @@
     if (typing) typing.remove();
   }
 
-  function productCardHtml(product) {
+  function productCardHtml(product, label, cardIndex) {
+    var cardLabel = label || "Closest match";
+    var idxStyle = (typeof cardIndex === "number" && cardIndex > 0)
+      ? " style='--card-index:" + cardIndex + "'"
+      : "";
     const image = withHttps(product.image);
     const imageHtml = image
       ? "<div class='product-image-wrap'><img class='product-image' src='" + escapeHtml(image) + "' alt='" + escapeHtml(product.title) + "' loading='lazy'></div>"
       : "<div class='product-image-wrap'></div>";
 
     return (
-      "<article class='product-card'>" +
+      "<article class='product-card'" + idxStyle + ">" +
         imageHtml +
         "<div class='product-info'>" +
-          "<div class='product-label'>Closest match</div>" +
+          "<div class='product-label'>" + escapeHtml(cardLabel) + "</div>" +
           "<h3 class='product-title'>" + escapeHtml(product.title) + "</h3>" +
           (product.description ? "<p class='product-description'>" + escapeHtml(product.description) + "</p>" : "") +
           (product.price ? "<div class='product-price'>" + escapeHtml(product.price) + "</div>" : "") +
           (product.url
-            ? "<a class='product-link' href='" + escapeHtml(product.url) + "'>Discover scent →</a>"
+            ? "<a class='product-link' href='" + escapeHtml(product.url) + "'>Discover scent \u2192</a>"
             : "") +
         "</div>" +
       "</article>"
@@ -1463,12 +1479,44 @@
         updateMoodBackground(text, data.bg_color);
         appendBotMessage(reply);
 
-        if (data.intent === "recommend" && data.handle) {
+        if (data.intent === "recommend" && data.products && data.products.length) {
+          // Add all recommended handles for follow-up context
+          data.products.forEach(function (p) {
+            if (p.handle && previousHandles.indexOf(p.handle) === -1) {
+              previousHandles.push(p.handle);
+            }
+          });
+
+          var productsToLoad = data.products.slice(0, 8);
+          var isMulti = productsToLoad.length > 1;
+
+          Promise.all(
+            productsToLoad.map(function (p) {
+              return loadShopifyProduct(p.handle, p.title);
+            })
+          ).then(function (loadedProducts) {
+            var row = document.createElement("div");
+            row.className = "chat-row bot";
+            if (isMulti) {
+              var gridHtml = "<div class='product-grid'>";
+              loadedProducts.forEach(function (product, idx) {
+                gridHtml += productCardHtml(product, "Recommended", idx);
+              });
+              gridHtml += "</div>";
+              row.innerHTML = gridHtml;
+            } else {
+              row.innerHTML = productCardHtml(loadedProducts[0], "Closest match", 0);
+            }
+            chatThread.appendChild(row);
+            scrollThread();
+          });
+        } else if (data.intent === "recommend" && data.handle) {
+          // Fallback: old single-handle path
           previousHandles.push(data.handle);
           loadShopifyProduct(data.handle, data.title).then(function (product) {
-            const row = document.createElement("div");
+            var row = document.createElement("div");
             row.className = "chat-row bot";
-            row.innerHTML = productCardHtml(product);
+            row.innerHTML = productCardHtml(product, "Closest match", 0);
             chatThread.appendChild(row);
             scrollThread();
           });
