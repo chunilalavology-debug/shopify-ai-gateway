@@ -1936,6 +1936,30 @@ async function recommend(openai, prompt) {
   return viaChatCompletions(openai, prompt);
 }
 
+/**
+ * Fallback: scan AI reply text for product title mentions and build
+ * the products array from catalog matches.
+ * Used when the AI writes product names in text but omits the products JSON field.
+ */
+function extractProductsFromReply(reply, catalog) {
+  const replyLower = String(reply || "").toLowerCase();
+  const found = [];
+
+  for (const product of catalog) {
+    const title = String(product.title || "").toLowerCase();
+    const handle = String(product.handle || "");
+    if (!title || !handle || title.length < 3) continue;
+
+    if (replyLower.includes(title)) {
+      if (!found.some((p) => p.handle === handle)) {
+        found.push({ title: product.title, handle });
+      }
+    }
+  }
+
+  return found;
+}
+
 module.exports = async (req, res) => {
   setCors(res);
 
@@ -2073,10 +2097,30 @@ module.exports = async (req, res) => {
       ...(storeFacts.focused ? [storeFacts.focused] : []),
       ...(storeFacts.catalog || []),
     ];
-    const payload = bindToCatalog(
-      normalizePayload(await recommend(openai, prompt)),
-      bindPool
-    );
+
+    const rawPayload = normalizePayload(await recommend(openai, prompt));
+
+    // ── Fallback: extract products from reply text ──────────────────────────
+    // If the AI wrote product names in the reply text but forgot the products
+    // JSON array, scan the reply and auto-populate products from catalog.
+    if (
+      rawPayload.intent === "recommend" &&
+      !rawPayload.products?.length &&
+      rawPayload.reply &&
+      bindPool.length
+    ) {
+      const extracted = extractProductsFromReply(rawPayload.reply, bindPool);
+      if (extracted.length) {
+        rawPayload.products = extracted;
+        rawPayload.intent = "recommend"; // force recommend so cards render
+        console.log(
+          `[products] Extracted ${extracted.length} product(s) from reply text:`,
+          extracted.map((p) => p.handle).join(", ")
+        );
+      }
+    }
+
+    const payload = bindToCatalog(rawPayload, bindPool);
 
     return res.status(200).json({
       ...payload,
