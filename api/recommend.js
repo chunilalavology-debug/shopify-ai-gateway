@@ -803,7 +803,7 @@ async function loadFullCatalog() {
           const words = title
             .toLowerCase()
             .split(/[^a-z0-9]+/)
-            .filter((w) => w.length > 3);
+            .filter((w) => w.length >= 2); // include short brand tokens like "cn1"
           return words.some((word) => hay.includes(word));
         })
         .slice(0, 4);
@@ -1456,7 +1456,7 @@ function classifyIntentHeuristic(text, previousHandles) {
   }
 
   if (
-    /\b(suggest|recommend|looking for|want|need|best for|everyday|date|summer|winter|fresh|citrus|vanilla|woody|floral|under\s*\$?\d+|should i buy|don'?t like|do not like)\b/i.test(
+    /\b(show|browse|list|display|all|see|give me|what are|show me|suggest|recommend|looking for|want|need|best for|everyday|date|summer|winter|fresh|citrus|vanilla|woody|floral|under\s*\$?\d+|should i buy|don'?t like|do not like|collection|originals?|classic|signature|exclusive)\b/i.test(
       lower
     )
   ) {
@@ -1466,7 +1466,7 @@ function classifyIntentHeuristic(text, previousHandles) {
       needs_policies: false,
       needs_discounts: false,
       focus_previous: /\bsimilar to this\b/i.test(lower) || focusPrevious,
-      search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 8),
+      search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length >= 2).slice(0, 12),
     };
   }
 
@@ -1476,7 +1476,7 @@ function classifyIntentHeuristic(text, previousHandles) {
     needs_policies: false,
     needs_discounts: false,
     focus_previous: focusPrevious,
-    search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 8),
+    search_terms: lower.split(/[^a-z0-9]+/).filter((w) => w.length >= 2).slice(0, 12),
   };
 }
 
@@ -1627,16 +1627,52 @@ async function gatherStoreData({
   }
 
   if (classification.needs_catalog) {
+    // ── Collection-aware search ──────────────────────────────────────────────
+    // If the user's query contains a known collection name (e.g. "CN1 Originals"),
+    // inject ALL products from that collection first so the AI always sees them.
+    const allCollectionNames = [...new Set(
+      catalog.flatMap((p) => p.collections || [])
+    )];
+    const queryLower = text.toLowerCase();
+    const matchedCollection = allCollectionNames.find((colName) => {
+      const colLower = colName.toLowerCase();
+      // Exact or contained match
+      if (queryLower.includes(colLower)) return true;
+      // All words of collection name appear in query
+      const words = colLower.split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+      return words.length >= 2 && words.every((w) => queryLower.includes(w));
+    });
+
+    let collectionProducts = [];
+    if (matchedCollection) {
+      collectionProducts = catalog.filter((p) =>
+        (p.collections || []).some(
+          (c) => c.toLowerCase() === matchedCollection.toLowerCase()
+        )
+      );
+      console.log(
+        `[search] Collection "${matchedCollection}" matched: ${collectionProducts.length} products`
+      );
+    }
+
+    // ── Regular keyword search ───────────────────────────────────────────────
     let matches = searchCatalog(
       catalog,
       classification.search_terms,
       text,
-      classification.query_type === "compare" ? 8 : 12
+      classification.query_type === "compare" ? 8 : 14
     );
     matches = filterByBudget(matches.length ? matches : catalog, text);
 
+    // Merge collection products at the front (deduplicated)
+    if (collectionProducts.length) {
+      const collectionHandles = new Set(collectionProducts.map((p) => p.handle));
+      const nonCollectionMatches = matches.filter((p) => !collectionHandles.has(p.handle));
+      matches = [...collectionProducts, ...nonCollectionMatches];
+    }
+
     if (!matches.length && catalog.length) {
-      matches = filterByBudget(catalog, text).slice(0, 12);
+      matches = filterByBudget(catalog, text).slice(0, 14);
     }
 
     const focused = classification.focus_previous
@@ -1644,7 +1680,7 @@ async function gatherStoreData({
       : findReferencedProduct(text, catalog, []);
 
     if (focused && !matches.some((item) => item.handle === focused.handle)) {
-      matches = [focused, ...matches].slice(0, 12);
+      matches = [focused, ...matches].slice(0, 14);
     }
 
     // Keep previously discussed products available for follow-ups.
@@ -1655,8 +1691,14 @@ async function gatherStoreData({
       }
     }
 
-    facts.catalog = matches.slice(0, 14);
+    // For collection browsing, pass more products to the AI (up to 20)
+    const factsLimit = matchedCollection ? 20 : 14;
+    facts.catalog = matches.slice(0, factsLimit);
     facts.focused = focused;
+
+    if (matchedCollection) {
+      facts.collectionHint = `User is browsing the "${matchedCollection}" collection. Show ALL ${collectionProducts.length} products from it.`;
+    }
   }
 
   return facts;
@@ -1750,6 +1792,13 @@ function buildAnswerPrompt({
     "",
     "STORE DATA FACTS (source of truth — do not invent beyond this):",
   ];
+
+  // Collection browse hint — tells AI to list ALL products in the section
+  if (storeFacts.collectionHint) {
+    lines.push(`COLLECTION CONTEXT: ${storeFacts.collectionHint}`);
+    lines.push("List every product in the Relevant Shopify products section as a recommendation. Do NOT say the collection does not exist.");
+    lines.push("");
+  }
 
   if (storeFacts.focused) {
     lines.push("Focused product:");
