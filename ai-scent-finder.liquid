@@ -822,16 +822,15 @@
   }
 
   .scent-finder-app .ai-short-reply {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
+    display: block;
 
     max-width: 100%;
 
     margin: 0;
 
     line-height: 1.45;
+
+    word-break: break-word;
   }
 
   .scent-finder-app .limit-card {
@@ -1707,10 +1706,12 @@
   const MAX_DISPLAY_PRODUCTS = 4;
 
   /*
-   * Maximum visible AI response.
-   * Product cards are rendered separately.
+   * HARD FRONTEND DISPLAY LIMIT
+   *
+   * The customer will NEVER see more than 100 characters
+   * from the AI reply.
    */
-  const MAX_REPLY_CHARS = 240;
+  const MAX_REPLY_CHARS = 100;
 
   const MONEY_FORMAT =
     {{ shop.money_format | json }};
@@ -1886,11 +1887,12 @@
 
   /*
    * ---------------------------------------------------------
-   * VERY SHORT AI RESPONSE
+   * HARD 100 CHARACTER AI RESPONSE
    * ---------------------------------------------------------
    *
-   * The user should NOT see the long API response.
-   * Maximum 3 short sentences and 240 characters.
+   * This is the final frontend safety layer.
+   * Even if the backend sends 500 characters,
+   * only 100 characters can be displayed.
    */
   function shortenAiReply(value) {
     let text = stripHtml(value);
@@ -1908,6 +1910,9 @@
       .replace(/\s+/g, " ")
       .trim();
 
+    /*
+     * Prefer complete sentences first.
+     */
     const sentenceMatches =
       text.match(
         /[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g
@@ -1917,19 +1922,69 @@
       sentenceMatches &&
       sentenceMatches.length
     ) {
-      text =
-        sentenceMatches
-          .slice(0, 3)
-          .join(" ")
-          .trim();
+      let shortText = "";
+
+      for (
+        let i = 0;
+        i < sentenceMatches.length;
+        i += 1
+      ) {
+        const sentence =
+          sentenceMatches[i].trim();
+
+        if (!sentence) {
+          continue;
+        }
+
+        const candidate =
+          shortText
+            ? shortText + " " + sentence
+            : sentence;
+
+        if (
+          candidate.length <=
+          MAX_REPLY_CHARS
+        ) {
+          shortText = candidate;
+        } else {
+          break;
+        }
+      }
+
+      if (shortText) {
+        text = shortText;
+      }
     }
 
-    if (text.length > MAX_REPLY_CHARS) {
+    /*
+     * Absolute hard cap.
+     */
+    if (
+      text.length >
+      MAX_REPLY_CHARS
+    ) {
       text =
         text
-          .slice(0, MAX_REPLY_CHARS - 3)
+          .slice(
+            0,
+            MAX_REPLY_CHARS - 3
+          )
           .replace(/\s+\S*$/, "")
           .trim() + "...";
+    }
+
+    /*
+     * Final absolute protection.
+     */
+    if (
+      text.length >
+      MAX_REPLY_CHARS
+    ) {
+      text =
+        text.slice(
+          0,
+          MAX_REPLY_CHARS
+        );
     }
 
     return text;
@@ -2314,6 +2369,11 @@
 
     chatThread.appendChild(row);
 
+    /*
+     * Store the same short response in history so
+     * future frontend conversation does not grow with
+     * huge AI messages.
+     */
     conversation.push({
       role: "assistant",
       content: shortReply
@@ -2465,9 +2525,6 @@
       return null;
     }
 
-    /*
-     * Support nested Shopify product objects.
-     */
     const nested =
       item.product ||
       item.product_data ||
@@ -2601,7 +2658,9 @@
       "product",
       "recommendation",
       "recommended_product",
-      "data"
+      "data",
+      "response",
+      "result"
     ];
 
     possibleKeys.forEach(function (key) {
@@ -2615,10 +2674,6 @@
     });
   }
 
-  /*
-   * Extract product handles from any Shopify URLs
-   * included in the API response.
-   */
   function extractHandlesFromText(text) {
     if (!text) {
       return [];
@@ -2648,16 +2703,10 @@
 
   /*
    * ---------------------------------------------------------
-   * NEW:
    * SHOPIFY PRODUCT SEARCH
    * ---------------------------------------------------------
-   *
-   * If the AI talks about a product but the API does not
-   * return a handle, search the actual Shopify catalog.
-   *
-   * This makes product cards work even when the AI response
-   * contains only a product name.
    */
+
   function searchShopifyProducts(query) {
     const searchText =
       stripHtml(query)
@@ -2680,7 +2729,7 @@
       "&resources[type]=product" +
       "&resources[limit]=" +
       MAX_DISPLAY_PRODUCTS +
-      "&resources[options][unavailable_products]=hide";
+      "&resources[options][unavailable_products]=show";
 
     return fetch(url, {
       method: "GET",
@@ -2744,9 +2793,102 @@
   }
 
   /*
-   * Extract all explicit product information returned by
-   * the AI gateway.
+   * ---------------------------------------------------------
+   * CATALOG FALLBACK
+   * ---------------------------------------------------------
+   *
+   * This is the final safety net.
+   *
+   * Even if AI returns no product object, no product handle,
+   * and Shopify search cannot find the user's phrase, we
+   * still load products from the Shopify catalog so the
+   * product-card area does not disappear.
    */
+  function loadCatalogFallbackProducts() {
+    const url =
+      "/products.json?limit=" +
+      MAX_DISPLAY_PRODUCTS;
+
+    return fetch(url, {
+      method: "GET",
+      headers: {
+        Accept:
+          "application/json"
+      },
+      credentials:
+        "same-origin"
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error(
+            "catalog_fallback_failed"
+          );
+        }
+
+        return response.json();
+      })
+      .then(function (data) {
+        const raw =
+          data &&
+          Array.isArray(data.products)
+            ? data.products
+            : [];
+
+        const products = [];
+        const seen = new Set();
+
+        raw.forEach(function (item) {
+          const normalized =
+            normalizeProduct({
+              handle:
+                item.handle,
+              title:
+                item.title,
+              description:
+                item.body_html,
+              image:
+                item.images &&
+                item.images[0]
+                  ? item.images[0].src
+                  : "",
+              url:
+                "/products/" +
+                item.handle
+            });
+
+          if (
+            normalized &&
+            normalized.handle &&
+            !seen.has(
+              normalized.handle
+            )
+          ) {
+            seen.add(
+              normalized.handle
+            );
+
+            products.push(
+              normalized
+            );
+          }
+        });
+
+        return products.slice(
+          0,
+          MAX_DISPLAY_PRODUCTS
+        );
+      })
+      .catch(function () {
+        return [];
+      });
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * EXTRACT PRODUCTS FROM AI RESPONSE
+   * ---------------------------------------------------------
+   */
+
   function extractProducts(data) {
     const products = [];
     const seen = new Set();
@@ -2755,9 +2897,6 @@
       return products;
     }
 
-    /*
-     * Search all common API response structures.
-     */
     [
       data.products,
       data.recommendations,
@@ -2769,7 +2908,9 @@
       data.product,
       data.recommendation,
       data.recommended_product,
-      data.data
+      data.data,
+      data.response,
+      data.result
     ].forEach(function (source) {
       collectProductItems(
         source,
@@ -2779,7 +2920,7 @@
     });
 
     /*
-     * Old single-handle response.
+     * Support old single-handle responses.
      */
     if (data.handle) {
       collectProductItems(
@@ -2794,7 +2935,7 @@
     }
 
     /*
-     * Product URLs inside reply.
+     * Product URLs inside AI reply.
      */
     const reply =
       typeof data.reply === "string"
@@ -2915,10 +3056,6 @@
         };
       })
       .catch(function () {
-        /*
-         * If product JSON fails but Shopify search/API gave
-         * us a valid handle, still render the product card.
-         */
         return {
           handle: safeHandle,
 
@@ -2945,9 +3082,6 @@
       });
   }
 
-  /*
-   * Load several products from Shopify.
-   */
   function hydrateProducts(products) {
     if (
       !products ||
@@ -3002,6 +3136,12 @@
       return result;
     });
   }
+
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT CARD HTML
+   * ---------------------------------------------------------
+   */
 
   function productCardHtml(
     product,
@@ -3177,54 +3317,87 @@
 
   /*
    * ---------------------------------------------------------
-   * PRODUCT DISCOVERY FALLBACK
+   * PRODUCT DISCOVERY
    * ---------------------------------------------------------
+   *
+   * IMPORTANT:
+   *
+   * Product cards do NOT depend on:
+   * data.intent === "recommend"
+   *
+   * We always try to find products.
    *
    * Priority:
    *
-   * 1. API product objects
-   * 2. Product handles in API reply
-   * 3. Shopify catalog search using the AI reply
-   * 4. Shopify catalog search using the user's query
+   * 1. Products directly returned by API
+   * 2. Handles/URLs returned by API
+   * 3. Previous recommended products
+   * 4. Shopify search using user's actual query
+   * 5. Shopify search using AI reply
+   * 6. Shopify catalog fallback
    */
   async function discoverProducts(
     data,
     originalQuery
   ) {
+    /*
+     * 1. Direct API products.
+     */
     let products =
       extractProducts(data);
 
     if (products.length) {
-      return hydrateProducts(
-        products
-      );
-    }
-
-    const reply =
-      data &&
-      typeof data.reply === "string"
-        ? data.reply
-        : "";
-
-    /*
-     * Search the actual Shopify catalog using the
-     * AI response first.
-     */
-    if (reply.trim()) {
-      products =
-        await searchShopifyProducts(
-          reply
-        );
-
-      if (products.length) {
-        return hydrateProducts(
+      const hydrated =
+        await hydrateProducts(
           products
         );
+
+      if (hydrated.length) {
+        return hydrated;
       }
     }
 
     /*
-     * Final fallback: search the original user query.
+     * 2. Previous products.
+     *
+     * This makes sure "tell me more", "what about
+     * another one", "yes", etc. still have cards.
+     */
+    if (
+      previousHandles.length
+    ) {
+      const previousProducts =
+        previousHandles
+          .slice(
+            0,
+            MAX_DISPLAY_PRODUCTS
+          )
+          .map(function (handle) {
+            return {
+              handle: handle,
+              url:
+                "/products/" +
+                handle
+            };
+          });
+
+      const hydratedPrevious =
+        await hydrateProducts(
+          previousProducts
+        );
+
+      if (
+        hydratedPrevious.length
+      ) {
+        return hydratedPrevious;
+      }
+    }
+
+    /*
+     * 3. Search Shopify using the USER'S QUERY first.
+     *
+     * This is more reliable than searching the long AI
+     * explanation.
      */
     if (originalQuery) {
       products =
@@ -3233,10 +3406,63 @@
         );
 
       if (products.length) {
-        return hydrateProducts(
+        const hydrated =
+          await hydrateProducts(
+            products
+          );
+
+        if (hydrated.length) {
+          return hydrated;
+        }
+      }
+    }
+
+    /*
+     * 4. Search Shopify using the AI reply.
+     */
+    const reply =
+      data &&
+      typeof data.reply === "string"
+        ? data.reply
+        : "";
+
+    if (reply.trim()) {
+      products =
+        await searchShopifyProducts(
+          reply
+        );
+
+      if (products.length) {
+        const hydrated =
+          await hydrateProducts(
+            products
+          );
+
+        if (hydrated.length) {
+          return hydrated;
+        }
+      }
+    }
+
+    /*
+     * 5. FINAL FALLBACK.
+     *
+     * If nothing matched, still show Shopify products.
+     */
+    products =
+      await loadCatalogFallbackProducts();
+
+    if (products.length) {
+      const hydrated =
+        await hydrateProducts(
           products
         );
+
+      if (hydrated.length) {
+        return hydrated;
       }
+
+      return products;
     }
 
     return [];
@@ -3473,7 +3699,15 @@
                     ),
 
                 previous_handles:
-                  previousHandles
+                  previousHandles,
+
+                /*
+                 * Backend can use these values.
+                 * Frontend still enforces the limit.
+                 */
+                max_reply_chars: 100,
+
+                max_output_chars: 100
               })
           }
         );
@@ -3554,26 +3788,29 @@
 
       /*
        * -----------------------------------------------------
-       * SHORT RESPONSE ONLY
+       * AI RESPONSE
        * -----------------------------------------------------
+       *
+       * appendBotMessage() applies the absolute 100
+       * character frontend limit.
        */
       const reply =
         data.reply ||
         data.message ||
         "Here are a few scents that match.";
 
-      appendBotMessage(reply);
+      appendBotMessage(
+        reply
+      );
 
       /*
        * -----------------------------------------------------
        * PRODUCT CARDS
        * -----------------------------------------------------
        *
-       * IMPORTANT:
-       * We DO NOT check data.intent anymore.
+       * NO intent check.
        *
-       * The system searches:
-       * API products → handles → AI reply → Shopify catalog.
+       * Product cards are attempted for EVERY AI response.
        */
       const products =
         await discoverProducts(
@@ -3582,7 +3819,7 @@
         );
 
       /*
-       * Save handles for future recommendations.
+       * Save handles for future queries.
        */
       products.forEach(
         function (product) {
@@ -3604,6 +3841,10 @@
         }
       );
 
+      /*
+       * Always render cards whenever Shopify returned
+       * products.
+       */
       if (
         products.length
       ) {
@@ -3622,6 +3863,39 @@
       appendBotMessage(
         "I couldn't reach the fragrance concierge. Please try again."
       );
+
+      /*
+       * Even when AI request has an issue, attempt
+       * to show products based on the user's query.
+       */
+      try {
+        const fallbackProducts =
+          await searchShopifyProducts(
+            text
+          );
+
+        if (
+          fallbackProducts.length
+        ) {
+          const hydrated =
+            await hydrateProducts(
+              fallbackProducts
+            );
+
+          if (
+            hydrated.length
+          ) {
+            renderProductCards(
+              hydrated
+            );
+          }
+        }
+      } catch (fallbackError) {
+        console.warn(
+          "Product fallback failed:",
+          fallbackError
+        );
+      }
     } finally {
       isBusy = false;
 
