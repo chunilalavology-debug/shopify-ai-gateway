@@ -1169,13 +1169,7 @@ function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) 
 
   if (product) {
     const onSale = productHasSale(product);
-    const stockBit = product.available
-      ? `In stock${
-          product.inventory_quantity != null
-            ? ` (${product.inventory_quantity} available)`
-            : ""
-        }`
-      : "Out of stock";
+    const stockBit = product.available ? "In stock" : "Out of stock";
     if (onSale && hasCoupons) {
       const codes = published
         .map((item) => `${item.code} (${item.detail})`)
@@ -1270,10 +1264,7 @@ function formatProductFact(item, index) {
   const longevityBit = item.longevity ? ` | longevity: ${item.longevity}` : "";
   const genderBit = item.gender ? ` | gender: ${item.gender}` : "";
   const occasionBit = item.occasion ? ` | occasion: ${item.occasion}` : "";
-  const inventoryBit =
-    item.inventory_quantity == null
-      ? ""
-      : ` | inventory_qty: ${item.inventory_quantity}`;
+  const inventoryBit = ""; // inventory quantity intentionally hidden from users
   const collectionsBit = item.collections?.length
     ? ` | collections: ${item.collections.join(", ")}`
     : "";
@@ -1605,11 +1596,7 @@ async function gatherStoreData({
           : `${referencedProduct.title} is NOT on sale. Current price: $${referencedProduct.price}.`
       );
       discountLines.push(
-        `Stock: ${referencedProduct.available ? "In stock" : "Out of stock"}${
-          referencedProduct.inventory_quantity != null
-            ? ` (qty: ${referencedProduct.inventory_quantity})`
-            : ""
-        }`
+        `Stock: ${referencedProduct.available ? "In stock" : "Out of stock"}`
       );
     } else {
       discountLines.push("No specific product identified from this message.");
