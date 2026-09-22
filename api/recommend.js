@@ -38,7 +38,7 @@ Always reply with a single raw JSON object and nothing else. No markdown fences.
 
 JSON schema:
 {
-  "reply": "natural customer-friendly answer (use short line breaks for product recommendations)",
+  "reply": "natural customer-friendly answer",
   "intent": "recommend" | "clarify" | "chat",
   "title": "exact product title from STORE DATA FACTS, or empty string (use for single product)",
   "handle": "exact Shopify product handle from STORE DATA FACTS, or empty string (use for single product)",
@@ -52,12 +52,22 @@ Hard rules:
 - If a fact is missing from STORE DATA FACTS, say it is not currently available.
 - Do NOT deflect with generic lines like "We specialize in fragrances..." — answer the question.
 - IMPORTANT: When recommending ONE product: set title + handle, and products = [{title, handle}].
-- IMPORTANT: When recommending MULTIPLE products (e.g. listing a collection, comparing, or showing options): set intent to "recommend", leave title/handle as empty string, and populate the products array with ALL recommended products. Each entry must have exact title and handle from STORE DATA FACTS.
-- Reply shape for multiple products: list each product name with a short reason. Set intent "recommend" and fill products array.
+- IMPORTANT: When recommending MULTIPLE products (e.g. listing a collection, comparing, or showing options): set intent to "recommend", leave title/handle as empty string, and populate the products array with ALL recommended products in order. Each entry must have exact title and handle from STORE DATA FACTS.
 - For follow-ups ("this one", "that perfume", "something cheaper"), use Focused product / Recently discussed products in the facts.
 - Discount/coupon answers must match REAL DISCOUNT FACTS exactly. Never invent a code.
 - If recommending an alternative, pick a different handle than ones already recommended when possible.
-- Keep reply concise (about 40–120 words for multi-product). bg_color mood defaults: warm #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.`;
+- bg_color mood defaults: warm #c4a07a, fresh #b7d6d4, floral #d8c2cc, night #c4b0aa, default #c9e2e8.
+
+STRICT REPLY FORMAT RULES (very important):
+- The "reply" field is plain conversational text ONLY. The frontend renders product cards separately.
+- NEVER include URLs, markdown links ([text](url)), or product page links in reply.
+- NEVER include product handles in reply.
+- NEVER include prices in reply (they appear on the product card).
+- NEVER use **bold** or markdown formatting in reply.
+- NEVER repeat product details (price, availability, URL) that will appear on the card.
+- For single product: write 1-2 sentences explaining why you recommend it.
+- For multiple products: write one short intro sentence (e.g. "Here are some great options with amber notes:") then list each product name followed by one short reason. Do NOT include prices, links, or handles.
+- Keep reply under 100 words total.`;
 
 const CLASSIFY_INSTRUCTIONS = `Classify the shopper message for a Shopify fragrance store assistant.
 Return ONLY JSON:
@@ -248,6 +258,32 @@ function normalizePayload(data) {
 
 function looksLikeScentQuery(text) {
   return !/^(hi|hey|hello|yo|sup|thanks|thank you|ok|okay|yes|no)$/i.test(text);
+}
+
+/**
+ * Strip markdown links [text](url), **bold**, handle lines, URL-only lines,
+ * and price lines from the AI reply so the chat bubble stays clean.
+ * Product cards handle all of that information.
+ */
+function sanitizeReply(reply) {
+  return String(reply || "")
+    // Remove markdown links [label](url) -> keep only the label
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    // Remove bare URLs
+    .replace(/https?:\/\/[^\s)]+/g, "")
+    // Remove lines that are just "Handle: xxx"
+    .replace(/^\s*-?\s*handle\s*:\s*\S+\s*$/gim, "")
+    // Remove lines that are just "- Price: $xx" or "Price: $xx"
+    .replace(/^\s*-?\s*price\s*:\s*\$[\d.,]+\s*$/gim, "")
+    // Remove lines that are just "- [View Product]" or similar
+    .replace(/^\s*-?\s*\[view product\].*$/gim, "")
+    // Remove **bold** markers but keep the text inside
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    // Remove leftover markdown * or _ emphasis
+    .replace(/[*_]{1,2}([^*_]+)[*_]{1,2}/g, "$1")
+    // Collapse multiple blank lines into one
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function stripHtml(value) {
@@ -2086,6 +2122,9 @@ module.exports = async (req, res) => {
     ];
 
     const rawPayload = normalizePayload(await recommend(openai, prompt));
+
+    // Sanitize reply: strip markdown links, bold, URLs, handle/price lines
+    rawPayload.reply = sanitizeReply(rawPayload.reply);
 
     // ── Fallback: extract products from reply text ──────────────────────────
     // If the AI wrote product names in the reply text but forgot the products
