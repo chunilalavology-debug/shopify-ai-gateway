@@ -1,5 +1,3 @@
-
-
 <style>
   .scent-finder-app,
   .scent-finder-app *,
@@ -15,27 +13,55 @@
     --sf-muted: #6b5c52;
     --sf-line: #ede8e4;
     --sf-glass: #ffffff;
-    /* Warm brand palette — glow color vars */
+
     --sf-bg-glow-1: rgba(239, 73, 50, 0.13);
     --sf-bg-glow-2: rgba(245, 158, 11, 0.1);
     --sf-bg-glow-3: rgba(251, 113, 60, 0.09);
     --sf-mood-hex: rgba(239, 73, 50, 0.18);
+
     --header-offset: var(--header-height, 72px);
+
     position: relative;
     width: 100%;
     min-height: calc(100svh - var(--header-offset));
     overflow: hidden;
+
     background:
-      radial-gradient(ellipse 1300px 800px at 8% -12%, var(--sf-bg-glow-1), transparent 55%),
-      radial-gradient(ellipse 900px 600px at 96% 10%, var(--sf-bg-glow-2), transparent 50%),
-      radial-gradient(ellipse 600px 400px at 50% 108%, var(--sf-bg-glow-3), transparent 55%),
-      linear-gradient(160deg, #fffcfa 0%, #fff7f3 48%, #fffaf7 100%);
+      radial-gradient(
+        ellipse 1300px 800px at 8% -12%,
+        var(--sf-bg-glow-1),
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse 900px 600px at 96% 10%,
+        var(--sf-bg-glow-2),
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse 600px 400px at 50% 108%,
+        var(--sf-bg-glow-3),
+        transparent 55%
+      ),
+      linear-gradient(
+        160deg,
+        #fffcfa 0%,
+        #fff7f3 48%,
+        #fffaf7 100%
+      );
+
     color: var(--sf-ink);
-    font-family: "Poppins", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+    font-family:
+      "Poppins",
+      "Inter",
+      "Helvetica Neue",
+      Helvetica,
+      Arial,
+      sans-serif;
+
     transition: background 0.8s ease;
   }
 
-  /* Mood colour shifts — warm palette only, no blue or purple */
   .scent-finder-app[data-mood="fresh"] {
     --sf-bg-glow-1: rgba(132, 204, 22, 0.18);
     --sf-bg-glow-2: rgba(74, 222, 128, 0.14);
@@ -84,10 +110,24 @@
   .scent-finder-app .sf-mesh {
     position: absolute;
     inset: -20%;
+
     background:
-      radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.72), transparent 32%),
-      radial-gradient(circle at 80% 30%, rgba(239, 73, 50, 0.07), transparent 28%),
-      radial-gradient(circle at 50% 90%, rgba(245, 158, 11, 0.06), transparent 34%);
+      radial-gradient(
+        circle at 20% 20%,
+        rgba(255, 255, 255, 0.72),
+        transparent 32%
+      ),
+      radial-gradient(
+        circle at 80% 30%,
+        rgba(239, 73, 50, 0.07),
+        transparent 28%
+      ),
+      radial-gradient(
+        circle at 50% 90%,
+        rgba(245, 158, 11, 0.06),
+        transparent 34%
+      );
+
     animation: sfMeshDrift 22s ease-in-out infinite alternate;
   }
 
@@ -99,64 +139,101 @@
     animation: sfOrbFloat 16s ease-in-out infinite;
   }
 
-  /* Brand coral glow — top right */
   .scent-finder-app .sf-orb-a {
     width: min(52vw, 580px);
     height: min(52vw, 580px);
     right: -12%;
     top: -8%;
-    background: radial-gradient(circle, rgba(239, 73, 50, 0.28) 0%, rgba(239, 73, 50, 0) 70%);
+
+    background:
+      radial-gradient(
+        circle,
+        rgba(239, 73, 50, 0.28) 0%,
+        rgba(239, 73, 50, 0) 70%
+      );
+
     animation-duration: 18s;
   }
 
-  /* Warm amber glow — bottom left */
   .scent-finder-app .sf-orb-b {
     width: min(46vw, 500px);
     height: min(46vw, 500px);
     left: -14%;
     bottom: -15%;
-    background: radial-gradient(circle, rgba(245, 158, 11, 0.22) 0%, rgba(245, 158, 11, 0) 70%);
+
+    background:
+      radial-gradient(
+        circle,
+        rgba(245, 158, 11, 0.22) 0%,
+        rgba(245, 158, 11, 0) 70%
+      );
+
     animation-duration: 21s;
     animation-delay: -4s;
   }
 
-  /* Warm peach glow — top centre */
   .scent-finder-app .sf-orb-c {
     width: min(32vw, 340px);
     height: min(32vw, 340px);
     left: 36%;
     top: -10%;
-    background: radial-gradient(circle, rgba(251, 146, 60, 0.2) 0%, rgba(251, 146, 60, 0) 70%);
+
+    background:
+      radial-gradient(
+        circle,
+        rgba(251, 146, 60, 0.2) 0%,
+        rgba(251, 146, 60, 0) 70%
+      );
+
     animation-duration: 14s;
     animation-delay: -7s;
   }
 
-  /* Deep coral glow — bottom right */
   .scent-finder-app .sf-orb-d {
     width: min(28vw, 300px);
     height: min(28vw, 300px);
     right: 14%;
     bottom: 4%;
-    background: radial-gradient(circle, rgba(220, 38, 38, 0.16) 0%, rgba(220, 38, 38, 0) 70%);
+
+    background:
+      radial-gradient(
+        circle,
+        rgba(220, 38, 38, 0.16) 0%,
+        rgba(220, 38, 38, 0) 70%
+      );
+
     animation-duration: 19s;
     animation-delay: -2s;
   }
 
   @keyframes sfMeshDrift {
-    from { transform: translate3d(-2%, -1%, 0) scale(1); }
-    to { transform: translate3d(3%, 2%, 0) scale(1.06); }
+    from {
+      transform: translate3d(-2%, -1%, 0) scale(1);
+    }
+
+    to {
+      transform: translate3d(3%, 2%, 0) scale(1.06);
+    }
   }
 
   @keyframes sfOrbFloat {
-    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-    50% { transform: translate3d(18px, -22px, 0) scale(1.08); }
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    50% {
+      transform: translate3d(18px, -22px, 0) scale(1.08);
+    }
   }
 
   .scent-finder-app .scent-finder-content {
     position: relative;
     z-index: 5;
+
     width: 100%;
     min-height: calc(100svh - var(--header-offset));
+
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -165,33 +242,51 @@
   .scent-finder-app .finder-step {
     width: 100%;
     min-height: calc(100svh - var(--header-offset) - 64px);
+
     display: none;
     align-items: center;
     justify-content: center;
+
     padding: 36px 24px 88px;
   }
 
   .scent-finder-app .finder-step.active {
     display: flex;
-    animation: scentFinderStepFadeIn 0.55s cubic-bezier(.22, 1, .36, 1) both;
+    animation:
+      scentFinderStepFadeIn
+      0.55s
+      cubic-bezier(.22, 1, .36, 1)
+      both;
   }
 
   @keyframes scentFinderStepFadeIn {
-    from { opacity: 0; transform: translateY(18px) scale(0.985); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(0.985);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .scent-finder-app .sf-card {
     width: 100%;
+
     background: #fff;
     border: 1px solid var(--sf-line);
     border-radius: 16px;
-    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.07);
+
+    box-shadow:
+      0 12px 40px rgba(15, 23, 42, 0.07);
   }
 
   .scent-finder-app .sf-kicker {
     margin: 0 0 12px;
+
     color: var(--sf-coral);
+
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.16em;
@@ -201,13 +296,25 @@
   .scent-finder-app .ai-icon {
     width: 58px;
     height: 58px;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     margin-bottom: 20px;
+
     border-radius: 50%;
-    background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0.7));
-    box-shadow: 0 10px 30px rgba(229, 107, 93, 0.18);
+
+    background:
+      linear-gradient(
+        180deg,
+        #fff,
+        rgba(255, 255, 255, 0.7)
+      );
+
+    box-shadow:
+      0 10px 30px rgba(229, 107, 93, 0.18);
+
     animation: sfIconPulse 3.6s ease-in-out infinite;
   }
 
@@ -217,8 +324,18 @@
   }
 
   @keyframes sfIconPulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 10px 30px rgba(229, 107, 93, 0.16); }
-    50% { transform: scale(1.04); box-shadow: 0 14px 36px rgba(229, 107, 93, 0.28); }
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow:
+        0 10px 30px rgba(229, 107, 93, 0.16);
+    }
+
+    50% {
+      transform: scale(1.04);
+      box-shadow:
+        0 14px 36px rgba(229, 107, 93, 0.28);
+    }
   }
 
   .scent-finder-app .landing-inner {
@@ -231,7 +348,9 @@
   .scent-finder-app .email-title,
   .scent-finder-app .chat-title {
     margin: 0 0 14px;
+
     color: var(--sf-ink);
+
     font-weight: 400;
     letter-spacing: -0.035em;
   }
@@ -252,7 +371,9 @@
   .scent-finder-app .email-subtitle,
   .scent-finder-app .chat-description {
     margin: 0 0 28px;
+
     color: var(--sf-muted);
+
     font-size: 16px;
     line-height: 1.55;
   }
@@ -266,14 +387,19 @@
   .scent-finder-app .info-dot {
     width: 18px;
     height: 18px;
+
     display: inline-flex;
     align-items: center;
     justify-content: center;
+
     border-radius: 50%;
+
     background: rgba(255, 255, 255, 0.7);
     color: rgba(27, 23, 20, 0.45);
+
     font-size: 10px;
     font-weight: 700;
+
     cursor: help;
   }
 
@@ -281,58 +407,98 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+
     width: 100%;
+
     margin-bottom: 22px;
   }
 
   .scent-finder-app .landing-option {
     min-height: 52px;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     padding: 12px 18px;
+
     border: 1px solid rgba(255, 255, 255, 0.8);
     border-radius: 12px;
+
     background: #fff;
     color: var(--sf-ink);
+
     font-size: 13px;
     font-weight: 500;
     line-height: 1.35;
     text-align: center;
+
     cursor: pointer;
-    animation: scentFinderStepFadeIn 0.5s ease both;
-    transition: transform 0.22s ease, background-color 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+
+    animation:
+      scentFinderStepFadeIn
+      0.5s
+      ease
+      both;
+
+    transition:
+      transform 0.22s ease,
+      background-color 0.22s ease,
+      box-shadow 0.22s ease,
+      border-color 0.22s ease;
   }
 
-  .scent-finder-app .landing-option:nth-child(1) { animation-delay: 0.05s; }
-  .scent-finder-app .landing-option:nth-child(2) { animation-delay: 0.1s; }
-  .scent-finder-app .landing-option:nth-child(3) { animation-delay: 0.15s; }
-  .scent-finder-app .landing-option:nth-child(4) { animation-delay: 0.2s; }
+  .scent-finder-app .landing-option:nth-child(1) {
+    animation-delay: 0.05s;
+  }
+
+  .scent-finder-app .landing-option:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+
+  .scent-finder-app .landing-option:nth-child(3) {
+    animation-delay: 0.15s;
+  }
+
+  .scent-finder-app .landing-option:nth-child(4) {
+    animation-delay: 0.2s;
+  }
 
   .scent-finder-app .landing-option:hover,
   .scent-finder-app .landing-option:focus-visible {
     transform: translateY(-3px);
     background: #fff;
-    border-color: rgba(229, 107, 93, 0.35);
-    box-shadow: 0 14px 30px rgba(229, 107, 93, 0.12);
+
+    border-color:
+      rgba(229, 107, 93, 0.35);
+
+    box-shadow:
+      0 14px 30px rgba(229, 107, 93, 0.12);
   }
 
   .scent-finder-app .landing-input,
   .scent-finder-app .email-input,
   .scent-finder-app .chat-input {
     position: relative;
+
     width: 100%;
+
     display: flex;
     align-items: center;
+
     background: #fff;
+
     border: 1px solid var(--sf-line);
   }
 
   .scent-finder-app .landing-input,
   .scent-finder-app .email-input {
     height: 52px;
+
     padding: 0 60px 0 18px;
+
     border-radius: 12px;
+
     box-shadow: none;
   }
 
@@ -340,11 +506,16 @@
   .scent-finder-app .email-input input,
   .scent-finder-app .chat-input input {
     width: 100%;
+
     border: 0 !important;
     outline: 0;
+
     background: transparent !important;
+
     box-shadow: none !important;
+
     color: var(--sf-ink);
+
     font-size: 16px;
   }
 
@@ -357,26 +528,41 @@
 
   .scent-finder-app .coral-arrow {
     position: absolute;
+
     top: 50%;
     right: 6px;
+
     width: 44px !important;
     height: 44px !important;
+
     min-width: 44px;
+
     padding: 0;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     border: 0;
     border-radius: 10px;
+
     transform: translateY(-50%);
+
     background: var(--sf-coral) !important;
     color: #fff !important;
+
     font-size: 18px;
     font-weight: 400;
     line-height: 1;
+
     cursor: pointer;
-    box-shadow: 0 8px 18px rgba(229, 107, 93, 0.28);
-    transition: transform 0.2s ease, filter 0.2s ease;
+
+    box-shadow:
+      0 8px 18px rgba(229, 107, 93, 0.28);
+
+    transition:
+      transform 0.2s ease,
+      filter 0.2s ease;
   }
 
   .scent-finder-app .coral-arrow:hover {
@@ -397,6 +583,7 @@
   .scent-finder-app .email-inner {
     width: 100%;
     max-width: 520px;
+
     padding: 42px 40px 36px;
   }
 
@@ -411,7 +598,9 @@
 
   .scent-finder-app .field-error {
     margin: 12px 6px 0;
+
     color: #c74435;
+
     font-size: 12px;
     font-weight: 500;
   }
@@ -422,7 +611,9 @@
 
   .scent-finder-app .email-consent {
     margin: 14px 6px 0;
+
     color: rgba(27, 23, 20, 0.42);
+
     font-size: 11px;
     line-height: 1.55;
   }
@@ -445,30 +636,43 @@
   .scent-finder-app .chat-layout {
     width: 100%;
     max-width: 1120px;
+
     margin: 0 auto;
+
     display: grid;
-    grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.2fr);
+
+    grid-template-columns:
+      minmax(280px, 0.9fr)
+      minmax(420px, 1.2fr);
+
     gap: 28px;
+
     align-items: stretch;
-    min-height: calc(100svh - var(--header-offset) - 140px);
+
+    min-height:
+      calc(100svh - var(--header-offset) - 140px);
   }
 
   .scent-finder-app .chat-intro {
     display: flex;
     flex-direction: column;
     justify-content: center;
+
     padding: 36px 32px;
   }
 
   .scent-finder-app .chat-title {
     max-width: 500px;
+
     font-size: clamp(28px, 3.4vw, 42px);
     line-height: 1.1;
   }
 
   .scent-finder-app .chat-description {
     max-width: 460px;
+
     margin-bottom: 22px;
+
     font-size: 15px;
   }
 
@@ -476,13 +680,20 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
+
     width: fit-content;
+
     padding: 8px 12px;
+
     border-radius: 999px;
+
     background: rgba(255, 255, 255, 0.5);
+
     color: rgba(27, 23, 20, 0.55);
+
     font-size: 11px;
     font-weight: 600;
+
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
@@ -495,24 +706,35 @@
   .scent-finder-app .quota-dots span {
     width: 8px;
     height: 8px;
+
     border-radius: 50%;
+
     background: rgba(255, 255, 255, 0.9);
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-    transition: background 0.25s ease, transform 0.25s ease;
+
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+
+    transition:
+      background 0.25s ease,
+      transform 0.25s ease;
   }
 
   .scent-finder-app .quota-dots span.used {
     background: var(--sf-coral);
+
     box-shadow: none;
+
     transform: scale(1.08);
   }
 
   .scent-finder-app .chat-panel {
     width: 100%;
     min-height: 0;
+
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+
     padding: 22px;
   }
 
@@ -520,17 +742,29 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+
     max-height: min(52vh, 480px);
+
     overflow-y: auto;
+
     padding: 4px 4px 8px 0;
+
     scrollbar-width: thin;
-    scrollbar-color: rgba(229, 107, 93, 0.45) transparent;
+
+    scrollbar-color:
+      rgba(229, 107, 93, 0.45)
+      transparent;
   }
 
   .scent-finder-app .chat-row {
     display: flex;
     width: 100%;
-    animation: sfMsgIn 0.4s ease both;
+
+    animation:
+      sfMsgIn
+      0.4s
+      ease
+      both;
   }
 
   .scent-finder-app .chat-row.user {
@@ -538,96 +772,181 @@
   }
 
   @keyframes sfMsgIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .scent-finder-app .user-bubble {
     max-width: min(78%, 320px);
+
     padding: 12px 18px;
+
     border-radius: 20px 20px 6px 20px;
+
     background: #fff4ed;
     color: var(--sf-ink);
+
     font-size: 13px;
     line-height: 1.45;
+
     word-break: break-word;
   }
 
   .scent-finder-app .bot-bubble {
     width: 100%;
+
     padding: 18px 20px;
+
     border-radius: 6px 20px 20px 20px;
+
     background: rgba(255, 255, 255, 0.84);
-    box-shadow: 0 10px 28px rgba(40, 28, 20, 0.05);
+
+    box-shadow:
+      0 10px 28px rgba(40, 28, 20, 0.05);
+
     color: var(--sf-ink);
+
     font-size: 13px;
-    line-height: 1.65;
+    line-height: 1.55;
   }
 
   .scent-finder-app .bot-bubble strong {
     font-weight: 700;
   }
 
+  /*
+   * IMPORTANT:
+   * AI response text is intentionally limited to 3 lines.
+   */
+  .scent-finder-app .ai-short-reply {
+    display: -webkit-box;
+
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+
+    overflow: hidden;
+
+    max-height: calc(1.55em * 3);
+
+    margin: 0;
+
+    line-height: 1.55;
+  }
+
   .scent-finder-app .limit-card {
     width: 100%;
+
     padding: 20px 22px;
+
     border-radius: 18px;
-    background: linear-gradient(180deg, rgba(255, 248, 246, 0.96), rgba(255, 236, 230, 0.92));
-    border: 1px solid rgba(229, 107, 93, 0.28);
+
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 248, 246, 0.96),
+        rgba(255, 236, 230, 0.92)
+      );
+
+    border:
+      1px solid rgba(229, 107, 93, 0.28);
+
     color: #7a332b;
+
     font-size: 13px;
     line-height: 1.6;
   }
 
   .scent-finder-app .limit-card strong {
     display: block;
+
     margin-bottom: 6px;
+
     font-size: 14px;
   }
 
   .scent-finder-app .product-card {
     width: 100%;
+
     display: grid;
+
     grid-template-columns: 124px 1fr;
+
     gap: 16px;
+
     padding: 14px;
+
     border-radius: 14px;
+
     background: #fff;
+
     border: 1px solid var(--sf-line);
-    animation: scentFinderProductFadeIn 0.5s ease both;
+
+    animation:
+      scentFinderProductFadeIn
+      0.5s
+      ease
+      both;
   }
 
-  /* Multi-product grid */
   .scent-finder-app .product-grid {
     display: flex;
     flex-direction: column;
+
     gap: 10px;
+
     width: 100%;
   }
 
   .scent-finder-app .product-grid .product-card {
-    animation-delay: calc(var(--card-index, 0) * 0.09s);
+    animation-delay:
+      calc(var(--card-index, 0) * 0.09s);
   }
 
   @keyframes scentFinderProductFadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .scent-finder-app .product-image-wrap {
     width: 124px;
     height: 124px;
+
     overflow: hidden;
+
     border-radius: 16px;
-    background: linear-gradient(180deg, #f6efe6, #eadfd3);
+
+    background:
+      linear-gradient(
+        180deg,
+        #f6efe6,
+        #eadfd3
+      );
   }
 
   .scent-finder-app .product-image {
     width: 100%;
     height: 100%;
+
     display: block;
+
     object-fit: cover;
-    transition: transform 0.45s ease;
+
+    transition:
+      transform 0.45s ease;
   }
 
   .scent-finder-app .product-card:hover .product-image {
@@ -638,20 +957,25 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+
     min-width: 0;
   }
 
   .scent-finder-app .product-label {
     margin-bottom: 5px;
+
     color: var(--sf-coral);
+
     font-size: 10px;
     font-weight: 600;
+
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
   .scent-finder-app .product-title {
     margin: 0 0 8px;
+
     font-size: 17px;
     font-weight: 600;
     line-height: 1.2;
@@ -659,13 +983,16 @@
 
   .scent-finder-app .product-description {
     margin: 0 0 10px;
+
     color: var(--sf-muted);
+
     font-size: 12px;
     line-height: 1.5;
   }
 
   .scent-finder-app .product-price {
     margin-bottom: 12px;
+
     font-size: 13px;
     font-weight: 600;
   }
@@ -674,15 +1001,30 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+
     width: fit-content;
+
     padding: 9px 16px;
+
     border-radius: 999px;
-    background: linear-gradient(135deg, #1b1714, #3a322c);
+
+    background:
+      linear-gradient(
+        135deg,
+        #1b1714,
+        #3a322c
+      );
+
     color: #fff !important;
+
     text-decoration: none;
+
     font-size: 11px;
     font-weight: 500;
-    transition: transform 0.2s ease, opacity 0.2s ease;
+
+    transition:
+      transform 0.2s ease,
+      opacity 0.2s ease;
   }
 
   .scent-finder-app .product-link:hover {
@@ -694,7 +1036,9 @@
     display: flex;
     align-items: center;
     gap: 9px;
+
     color: var(--sf-muted);
+
     font-size: 12px;
     font-style: italic;
   }
@@ -707,82 +1051,129 @@
   .scent-finder-app .loading-dots span {
     width: 5px;
     height: 5px;
+
     border-radius: 50%;
+
     background: var(--sf-coral);
-    animation: scentFinderLoadingDot 1s infinite ease-in-out;
+
+    animation:
+      scentFinderLoadingDot
+      1s
+      infinite
+      ease-in-out;
   }
 
-  .scent-finder-app .loading-dots span:nth-child(2) { animation-delay: .15s; }
-  .scent-finder-app .loading-dots span:nth-child(3) { animation-delay: .3s; }
+  .scent-finder-app .loading-dots span:nth-child(2) {
+    animation-delay: .15s;
+  }
+
+  .scent-finder-app .loading-dots span:nth-child(3) {
+    animation-delay: .3s;
+  }
 
   @keyframes scentFinderLoadingDot {
-    0%, 60%, 100% { opacity: .3; transform: translateY(0); }
-    30% { opacity: 1; transform: translateY(-3px); }
+    0%,
+    60%,
+    100% {
+      opacity: .3;
+      transform: translateY(0);
+    }
+
+    30% {
+      opacity: 1;
+      transform: translateY(-3px);
+    }
   }
 
   .scent-finder-app .chat-controls {
     width: 100%;
+
     margin-top: 16px;
     padding-top: 14px;
+
     border-top: 1px solid var(--sf-line);
   }
 
   .scent-finder-app .chat-quick-row {
     width: 100%;
+
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    overflow: visible;
-    padding-bottom: 12px;
-  }
 
-  .scent-finder-app .chat-quick-row::-webkit-scrollbar {
-    display: none;
+    gap: 8px;
+
+    overflow: visible;
+
+    padding-bottom: 12px;
   }
 
   .scent-finder-app .chat-chip {
     flex: 0 0 auto;
+
     min-height: 36px;
+
     padding: 8px 14px;
+
     border: 1px solid var(--sf-line);
     border-radius: 999px;
+
     background: #fff;
     color: #374151;
+
     font-size: 12px;
     font-weight: 500;
+
     white-space: nowrap;
+
     cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
   }
 
   .scent-finder-app .chat-chip:hover:not(:disabled) {
     background: #fff7ed;
+
     border-color: #fdba74;
+
     color: var(--sf-ink);
+
     transform: none;
+
     box-shadow: none;
   }
 
   .scent-finder-app .chat-chip.restart {
     background: var(--sf-coral);
+
     border-color: var(--sf-coral);
+
     color: #fff;
   }
 
   .scent-finder-app .chat-composer {
     display: flex;
     align-items: stretch;
+
     gap: 10px;
+
     width: 100%;
   }
 
   .scent-finder-app .chat-input {
     flex: 1 1 auto;
+
     min-width: 0;
+
     height: 48px;
+
     padding: 0 16px;
+
     border-radius: 12px;
+
     box-shadow: none;
   }
 
@@ -792,61 +1183,89 @@
 
   .scent-finder-app .ask-button {
     position: static;
-    top: auto;
-    right: auto;
+
     flex: 0 0 auto;
+
     height: 48px;
+
     min-width: 92px;
+
     padding: 0 18px;
+
     border: 0;
     border-radius: 12px;
+
     transform: none;
+
     background: var(--sf-coral) !important;
     color: #fff !important;
+
     font-size: 13px;
     font-weight: 600;
+
     letter-spacing: 0.02em;
+
     cursor: pointer;
+
     box-shadow: none;
-    transition: background-color 0.2s ease, transform 0.2s ease;
+
+    transition:
+      background-color 0.2s ease,
+      transform 0.2s ease;
   }
 
   .scent-finder-app .ask-button:hover:not(:disabled) {
     filter: none;
+
     background: var(--sf-coral-dark) !important;
+
     transform: none;
   }
 
   .scent-finder-app .quota-note {
     margin: 10px 8px 0;
+
     color: rgba(27, 23, 20, 0.45);
+
     font-size: 11px;
   }
 
   .scent-finder-app .finder-footer {
     position: absolute;
+
     bottom: 22px;
     left: 50%;
+
     z-index: 10;
+
     transform: translateX(-50%);
+
     color: rgba(26, 16, 9, 0.32);
+
     font-size: 10px;
     font-weight: 500;
+
     letter-spacing: .12em;
+
     text-transform: uppercase;
+
     white-space: nowrap;
   }
 
   @media (max-width: 900px) {
     .scent-finder-app .chat-layout {
       grid-template-columns: 1fr;
+
       gap: 18px;
+
       min-height: 0;
     }
+
     .scent-finder-app .chat-intro,
     .scent-finder-app .chat-panel {
       padding: 24px;
     }
+
     .scent-finder-app .chat-thread {
       max-height: min(46vh, 420px);
     }
@@ -856,28 +1275,45 @@
     .scent-finder-app .finder-step {
       padding: 20px 14px 72px;
     }
+
     .scent-finder-app .landing-inner,
     .scent-finder-app .email-inner {
       padding: 28px 18px 22px;
     }
+
     .scent-finder-app .landing-options {
       grid-template-columns: 1fr;
     }
+
     .scent-finder-app .chat-step {
       padding: 12px 12px 70px;
     }
+
     .scent-finder-app .product-card {
       grid-template-columns: 92px 1fr;
+
       gap: 12px;
+
       padding: 10px;
     }
+
     .scent-finder-app .product-image-wrap {
       width: 92px;
       height: 112px;
     }
-    .scent-finder-app .ask-button { min-width: 72px; }
-    .scent-finder-app .chat-composer { gap: 8px; }
-    .scent-finder-app .finder-footer { bottom: 14px; font-size: 8px; }
+
+    .scent-finder-app .ask-button {
+      min-width: 72px;
+    }
+
+    .scent-finder-app .chat-composer {
+      gap: 8px;
+    }
+
+    .scent-finder-app .finder-footer {
+      bottom: 14px;
+      font-size: 8px;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -889,10 +1325,13 @@
       transition-duration: .01ms !important;
     }
   }
-
 </style>
 
-<div class="scent-finder-app" id="scent-finder-app-{{ section.id }}" data-mood="default">
+<div
+  class="scent-finder-app"
+  id="scent-finder-app-{{ section.id }}"
+  data-mood="default"
+>
   <div class="sf-atmosphere" aria-hidden="true">
     <span class="sf-mesh"></span>
     <span class="sf-orb sf-orb-a"></span>
@@ -902,26 +1341,89 @@
   </div>
 
   <div class="scent-finder-content">
-    <section class="finder-step active" id="step-1-{{ section.id }}">
+
+    <!-- STEP 1 -->
+    <section
+      class="finder-step active"
+      id="step-1-{{ section.id }}"
+    >
       <div class="sf-card landing-inner">
+
         <div class="ai-icon" aria-hidden="true">
-          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z" stroke="#E56B5D" stroke-width="1.8"/>
+          <svg
+            viewBox="0 0 40 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z"
+              stroke="#E56B5D"
+              stroke-width="1.8"
+            />
           </svg>
         </div>
-        <p class="sf-kicker">Step 1 of 3</p>
-        <h1 class="landing-title">{{ section.settings.step1_heading_prefix | default: 'Try our ' }}<strong>{{ section.settings.step1_heading_bold | default: 'AI Scent Finder' }}</strong></h1>
+
+        <p class="sf-kicker">
+          Step 1 of 3
+        </p>
+
+        <h1 class="landing-title">
+          {{ section.settings.step1_heading_prefix | default: 'Try our ' }}
+          <strong>
+            {{ section.settings.step1_heading_bold | default: 'AI Scent Finder' }}
+          </strong>
+        </h1>
 
         <p class="landing-question">
-          <span>{{ section.settings.step1_question_prefix | default: 'What are ' }}<strong>{{ section.settings.step1_question_bold | default: 'you looking for today?' }}</strong></span>
-          <span class="info-dot" title="Tell us about the mood, occasion, ingredient, or fragrance you're looking for.">i</span>
+          <span>
+            {{ section.settings.step1_question_prefix | default: 'What are ' }}
+            <strong>
+              {{ section.settings.step1_question_bold | default: 'you looking for today?' }}
+            </strong>
+          </span>
+
+          <span
+            class="info-dot"
+            title="Tell us about the mood, occasion, ingredient, or fragrance you're looking for."
+          >
+            i
+          </span>
         </p>
 
         <div class="landing-options">
-          <button type="button" class="landing-option" data-query="{{ section.settings.option1_query | default: 'A scent with amber notes' | escape }}">{{ section.settings.option1_label | default: 'A scent with amber notes' }}</button>
-          <button type="button" class="landing-option" data-query="{{ section.settings.option2_query | default: 'A perfume to wear to weekend brunch' | escape }}">{{ section.settings.option2_label | default: 'A perfume to wear to weekend brunch' }}</button>
-          <button type="button" class="landing-option" data-query="{{ section.settings.option3_query | default: 'Smell like Tom Ford Tobacco Vanille' | escape }}">{{ section.settings.option3_label | default: 'Smell like Tom Ford Tobacco Vanille' }}</button>
-          <button type="button" class="landing-option" data-query="{{ section.settings.option4_query | default: 'Perfume that makes me feel sexy' | escape }}">{{ section.settings.option4_label | default: 'Perfume that makes me feel sexy' }}</button>
+
+          <button
+            type="button"
+            class="landing-option"
+            data-query="{{ section.settings.option1_query | default: 'A scent with amber notes' | escape }}"
+          >
+            {{ section.settings.option1_label | default: 'A scent with amber notes' }}
+          </button>
+
+          <button
+            type="button"
+            class="landing-option"
+            data-query="{{ section.settings.option2_query | default: 'A perfume to wear to weekend brunch' | escape }}"
+          >
+            {{ section.settings.option2_label | default: 'A perfume to wear to weekend brunch' }}
+          </button>
+
+          <button
+            type="button"
+            class="landing-option"
+            data-query="{{ section.settings.option3_query | default: 'Smell like Tom Ford Tobacco Vanille' | escape }}"
+          >
+            {{ section.settings.option3_label | default: "Smell like Tom Ford's Tobacco Vanille" }}
+          </button>
+
+          <button
+            type="button"
+            class="landing-option"
+            data-query="{{ section.settings.option4_query | default: 'Perfume that makes me feel sexy' | escape }}"
+          >
+            {{ section.settings.option4_label | default: 'Perfume that makes me feel sexy' }}
+          </button>
+
         </div>
 
         <div class="landing-input">
@@ -933,23 +1435,58 @@
             maxlength="5000"
             aria-label="What are you looking for?"
           >
-          <button type="button" class="coral-arrow" id="landing-submit-{{ section.id }}" aria-label="Continue">→</button>
+
+          <button
+            type="button"
+            class="coral-arrow"
+            id="landing-submit-{{ section.id }}"
+            aria-label="Continue"
+          >
+            →
+          </button>
         </div>
+
       </div>
     </section>
 
-    <section class="finder-step" id="step-2-{{ section.id }}">
+    <!-- STEP 2 -->
+    <section
+      class="finder-step"
+      id="step-2-{{ section.id }}"
+    >
       <div class="sf-card email-inner">
+
         <div class="ai-icon" aria-hidden="true">
-          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z" stroke="#E56B5D" stroke-width="1.8"/>
+          <svg
+            viewBox="0 0 40 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z"
+              stroke="#E56B5D"
+              stroke-width="1.8"
+            />
           </svg>
         </div>
-        <p class="sf-kicker">Step 2 of 3</p>
-        <h2 class="email-title">{{ section.settings.step2_heading_prefix | default: 'Lets help you discover ' }}<strong>{{ section.settings.step2_heading_bold | default: 'Fragrances tailored to you.' }}</strong></h2>
-        <p class="email-subtitle">{{ section.settings.step2_subtitle | default: 'Please enter your email to get started.' }}</p>
+
+        <p class="sf-kicker">
+          Step 2 of 3
+        </p>
+
+        <h2 class="email-title">
+          {{ section.settings.step2_heading_prefix | default: 'Lets help you discover ' }}
+          <strong>
+            {{ section.settings.step2_heading_bold | default: 'Fragrances tailored to you.' }}
+          </strong>
+        </h2>
+
+        <p class="email-subtitle">
+          {{ section.settings.step2_subtitle | default: 'Please enter your email to get started.' }}
+        </p>
 
         <div class="email-input">
+
           <input
             type="email"
             id="customer-email-{{ section.id }}"
@@ -958,46 +1495,163 @@
             aria-label="Email address"
             aria-describedby="email-error-{{ section.id }}"
           >
-          <button type="button" class="coral-arrow" id="email-submit-{{ section.id }}" aria-label="Start fragrance finder">→</button>
+
+          <button
+            type="button"
+            class="coral-arrow"
+            id="email-submit-{{ section.id }}"
+            aria-label="Start fragrance finder"
+          >
+            →
+          </button>
+
         </div>
-        <p class="field-error" id="email-error-{{ section.id }}" hidden>Please enter a valid email address.</p>
-        <p class="email-consent">By submitting your email you agree to receive personalised fragrance recommendations and marketing emails from us. View our <a href="/policies/privacy-policy" target="_blank">Privacy Policy</a> and <a href="/policies/terms-of-service" target="_blank">Terms &amp; Conditions</a>.</p>
+
+        <p
+          class="field-error"
+          id="email-error-{{ section.id }}"
+          hidden
+        >
+          Please enter a valid email address.
+        </p>
+
+        <p class="email-consent">
+          By submitting your email you agree to receive personalised fragrance recommendations and marketing emails from us.
+          View our
+          <a
+            href="/policies/privacy-policy"
+            target="_blank"
+          >
+            Privacy Policy
+          </a>
+          and
+          <a
+            href="/policies/terms-of-service"
+            target="_blank"
+          >
+            Terms &amp; Conditions
+          </a>.
+        </p>
+
       </div>
     </section>
 
-    <section class="finder-step chat-step" id="step-3-{{ section.id }}">
+    <!-- STEP 3 -->
+    <section
+      class="finder-step chat-step"
+      id="step-3-{{ section.id }}"
+    >
       <div class="chat-layout">
+
         <div class="sf-card chat-intro">
+
           <div class="ai-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z" stroke="#E56B5D" stroke-width="1.8"/>
+            <svg
+              viewBox="0 0 40 40"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 5C20.8 13.7 26.3 19.2 35 20C26.3 20.8 20.8 26.3 20 35C19.2 26.3 13.7 20.8 5 20C13.7 19.2 19.2 13.7 20 5Z"
+                stroke="#E56B5D"
+                stroke-width="1.8"
+              />
             </svg>
           </div>
-          <p class="sf-kicker">Step 3 of 3</p>
-          <h2 class="chat-title">Let's find your <strong>perfect fragrance.</strong></h2>
+
+          <p class="sf-kicker">
+            Step 3 of 3
+          </p>
+
+          <h2 class="chat-title">
+            Let's find your
+            <strong>perfect fragrance.</strong>
+          </h2>
+
           <p class="chat-description">
             Tell me about the mood, occasion, ingredients, or fragrances you love and I'll help you find something from our collection.
           </p>
-          <div class="quota-pills" aria-live="polite">
-            <div class="quota-dots" id="quota-dots-{{ section.id }}"></div>
-            <span id="quota-label-{{ section.id }}">20 messages left</span>
+
+          <div
+            class="quota-pills"
+            aria-live="polite"
+          >
+            <div
+              class="quota-dots"
+              id="quota-dots-{{ section.id }}"
+            ></div>
+
+            <span id="quota-label-{{ section.id }}">
+              20 messages left
+            </span>
           </div>
+
         </div>
 
         <div class="sf-card chat-panel">
-          <div class="chat-thread" id="chat-thread-{{ section.id }}" aria-live="polite"></div>
+
+          <div
+            class="chat-thread"
+            id="chat-thread-{{ section.id }}"
+            aria-live="polite"
+          ></div>
 
           <div class="chat-controls">
+
             <div class="chat-quick-row">
-              <button type="button" class="chat-chip restart" id="restart-button-{{ section.id }}">Restart</button>
-              <button type="button" class="chat-chip" data-chat-query="Give me more options">More options</button>
-              <button type="button" class="chat-chip" data-chat-query="Show me unisex options">Unisex</button>
-              <button type="button" class="chat-chip" data-chat-query="Show me CN1 Originals">CN1 Originals</button>
-              <button type="button" class="chat-chip" data-chat-query="I need a fragrance for a party">For a party</button>
-              <button type="button" class="chat-chip" data-chat-query="A warm vanilla scent">Vanilla</button>
+
+              <button
+                type="button"
+                class="chat-chip restart"
+                id="restart-button-{{ section.id }}"
+              >
+                Restart
+              </button>
+
+              <button
+                type="button"
+                class="chat-chip"
+                data-chat-query="Give me more options"
+              >
+                More options
+              </button>
+
+              <button
+                type="button"
+                class="chat-chip"
+                data-chat-query="Show me unisex options"
+              >
+                Unisex
+              </button>
+
+              <button
+                type="button"
+                class="chat-chip"
+                data-chat-query="Show me CN1 Originals"
+              >
+                CN1 Originals
+              </button>
+
+              <button
+                type="button"
+                class="chat-chip"
+                data-chat-query="I need a fragrance for a party"
+              >
+                For a party
+              </button>
+
+              <button
+                type="button"
+                class="chat-chip"
+                data-chat-query="A warm vanilla scent"
+              >
+                Vanilla
+              </button>
+
             </div>
 
             <div class="chat-composer">
+
               <div class="chat-input">
                 <input
                   type="text"
@@ -1008,15 +1662,34 @@
                   aria-label="Ask the AI Scent Finder"
                 >
               </div>
-              <button type="button" class="ask-button" id="chat-submit-{{ section.id }}">Ask</button>
+
+              <button
+                type="button"
+                class="ask-button"
+                id="chat-submit-{{ section.id }}"
+              >
+                Ask
+              </button>
+
             </div>
-            <p class="quota-note" id="quota-note-{{ section.id }}">You can send 20 free messages each day.</p>
+
+            <p
+              class="quota-note"
+              id="quota-note-{{ section.id }}"
+            >
+              You can send 20 free messages each day.
+            </p>
+
           </div>
         </div>
+
       </div>
     </section>
 
-    <footer class="finder-footer">Powered by A.I. Fragrance Concierge</footer>
+    <footer class="finder-footer">
+      Powered by A.I. Fragrance Concierge
+    </footer>
+
   </div>
 </div>
 
@@ -1025,34 +1698,111 @@
   "use strict";
 
   const sectionId = {{ section.id | json }};
+
   const AI_ENDPOINT =
     {{ section.settings.api_endpoint | json }} ||
     "https://shopify-ai-gateway-rosy.vercel.app/api/recommend";
-  const MAX_ASKS = Number({{ section.settings.max_asks | default: 20 | json }}) || 20;
+
+  const MAX_ASKS =
+    Number({{ section.settings.max_asks | default: 20 | json }}) || 20;
+
   const MAX_INPUT_WORDS = 800;
+
   const HISTORY_LIMIT = 8;
-  const MONEY_FORMAT = {{ shop.money_format | json }};
-  const QUOTA_KEY = "ai-scent-finder-quota-v3";
-  const SESSION_KEY = "ai-scent-finder-session-v1";
-  const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+  const MAX_DISPLAY_PRODUCTS = 4;
+
+  const MONEY_FORMAT =
+    {{ shop.money_format | json }};
+
+  const QUOTA_KEY =
+    "ai-scent-finder-quota-v3";
+
+  const SESSION_KEY =
+    "ai-scent-finder-session-v1";
+
+  const WINDOW_MS =
+    24 * 60 * 60 * 1000;
+
   const DAILY_LIMIT_MESSAGE =
-    "🌸 You've reached your free chat limit for today. Please come back tomorrow and we'll be happy to help! 💜";
+    "You've reached your free chat limit for today. Please come back tomorrow and we'll be happy to help!";
 
-  const app = document.getElementById("scent-finder-app-" + sectionId);
-  const landingQuery = document.getElementById("landing-query-" + sectionId);
-  const landingSubmit = document.getElementById("landing-submit-" + sectionId);
-  const customerEmailInput = document.getElementById("customer-email-" + sectionId);
-  const emailSubmit = document.getElementById("email-submit-" + sectionId);
-  const emailError = document.getElementById("email-error-" + sectionId);
-  const chatQuery = document.getElementById("chat-query-" + sectionId);
-  const chatSubmit = document.getElementById("chat-submit-" + sectionId);
-  const chatThread = document.getElementById("chat-thread-" + sectionId);
-  const restartButton = document.getElementById("restart-button-" + sectionId);
-  const quotaDots = document.getElementById("quota-dots-" + sectionId);
-  const quotaLabel = document.getElementById("quota-label-" + sectionId);
-  const quotaNote = document.getElementById("quota-note-" + sectionId);
+  const app =
+    document.getElementById(
+      "scent-finder-app-" + sectionId
+    );
 
-  if (!app || !landingQuery || !landingSubmit || !customerEmailInput || !emailSubmit || !chatQuery || !chatSubmit || !chatThread || !restartButton) {
+  const landingQuery =
+    document.getElementById(
+      "landing-query-" + sectionId
+    );
+
+  const landingSubmit =
+    document.getElementById(
+      "landing-submit-" + sectionId
+    );
+
+  const customerEmailInput =
+    document.getElementById(
+      "customer-email-" + sectionId
+    );
+
+  const emailSubmit =
+    document.getElementById(
+      "email-submit-" + sectionId
+    );
+
+  const emailError =
+    document.getElementById(
+      "email-error-" + sectionId
+    );
+
+  const chatQuery =
+    document.getElementById(
+      "chat-query-" + sectionId
+    );
+
+  const chatSubmit =
+    document.getElementById(
+      "chat-submit-" + sectionId
+    );
+
+  const chatThread =
+    document.getElementById(
+      "chat-thread-" + sectionId
+    );
+
+  const restartButton =
+    document.getElementById(
+      "restart-button-" + sectionId
+    );
+
+  const quotaDots =
+    document.getElementById(
+      "quota-dots-" + sectionId
+    );
+
+  const quotaLabel =
+    document.getElementById(
+      "quota-label-" + sectionId
+    );
+
+  const quotaNote =
+    document.getElementById(
+      "quota-note-" + sectionId
+    );
+
+  if (
+    !app ||
+    !landingQuery ||
+    !landingSubmit ||
+    !customerEmailInput ||
+    !emailSubmit ||
+    !chatQuery ||
+    !chatSubmit ||
+    !chatThread ||
+    !restartButton
+  ) {
     return;
   }
 
@@ -1060,9 +1810,14 @@
   let customerEmail = "";
   let isBusy = false;
   let limitReached = false;
+
   let conversation = [];
+
   let previousHandles = [];
 
+  /*
+   * Escape HTML before inserting API values into the page.
+   */
   function escapeHtml(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -1077,72 +1832,262 @@
   }
 
   function stripHtml(value) {
-    const box = document.createElement("div");
-    box.innerHTML = value || "";
-    return (box.textContent || box.innerText || "").replace(/\s+/g, " ").trim();
+    const box =
+      document.createElement("div");
+
+    box.innerHTML =
+      value || "";
+
+    return (
+      box.textContent ||
+      box.innerText ||
+      ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function formatMoney(cents) {
-    const amount = (Number(cents) / 100).toFixed(2);
-    if (!MONEY_FORMAT) return "$" + amount;
+    const numeric =
+      Number(cents);
+
+    if (!isFinite(numeric)) {
+      return "";
+    }
+
+    const amount =
+      (numeric / 100).toFixed(2);
+
+    if (!MONEY_FORMAT) {
+      return "$" + amount;
+    }
+
     return String(MONEY_FORMAT)
-      .replace(/\{\{\s*amount\s*\}\}/g, amount)
-      .replace(/\{\{\s*amount_no_decimals\s*\}\}/g, String(Math.round(Number(cents) / 100)))
-      .replace(/\{\{\s*amount_with_comma_separator\s*\}\}/g, amount.replace(".", ","));
+      .replace(
+        /\{\{\s*amount\s*\}\}/g,
+        amount
+      )
+      .replace(
+        /\{\{\s*amount_no_decimals\s*\}\}/g,
+        String(Math.round(numeric / 100))
+      )
+      .replace(
+        /\{\{\s*amount_with_comma_separator\s*\}\}/g,
+        amount.replace(".", ",")
+      );
   }
 
   function withHttps(url) {
-    if (!url) return "";
-    if (url.indexOf("//") === 0) return "https:" + url;
-    return url;
+    if (!url) {
+      return "";
+    }
+
+    const value =
+      String(url).trim();
+
+    if (
+      value.indexOf("//") === 0
+    ) {
+      return "https:" + value;
+    }
+
+    return value;
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * SHORT AI RESPONSE
+   * ---------------------------------------------------------
+   *
+   * The AI can return a long reply.
+   * We intentionally display ONLY the first 3 sentences.
+   */
+  function shortenAiReply(value) {
+    let text =
+      stripHtml(value);
+
+    if (!text) {
+      return "Here are some fragrances that match your request.";
+    }
+
+    text =
+      text
+        .replace(/\r\n/g, "\n")
+        .replace(/\n+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    /*
+     * Remove markdown formatting that can make the response
+     * look unnecessarily long.
+     */
+    text =
+      text
+        .replace(/^#{1,6}\s*/g, "")
+        .replace(/\*\*/g, "")
+        .replace(/__/g, "");
+
+    /*
+     * Keep maximum 3 sentences.
+     */
+    const sentenceMatches =
+      text.match(
+        /[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g
+      );
+
+    if (
+      sentenceMatches &&
+      sentenceMatches.length > 3
+    ) {
+      text =
+        sentenceMatches
+          .slice(0, 3)
+          .join(" ")
+          .trim();
+    }
+
+    /*
+     * Absolute character safety limit.
+     */
+    if (text.length > 360) {
+      text =
+        text
+          .slice(0, 357)
+          .replace(/\s+\S*$/, "")
+          .trim() + "...";
+    }
+
+    return text;
   }
 
   function getQuota() {
     try {
-      const parsed = JSON.parse(localStorage.getItem(QUOTA_KEY) || "null");
-      if (!parsed || Date.now() > Number(parsed.reset)) {
-        return { count: 0, reset: Date.now() + WINDOW_MS };
+      const parsed =
+        JSON.parse(
+          localStorage.getItem(
+            QUOTA_KEY
+          ) || "null"
+        );
+
+      if (
+        !parsed ||
+        Date.now() >
+          Number(parsed.reset)
+      ) {
+        return {
+          count: 0,
+          reset:
+            Date.now() +
+            WINDOW_MS
+        };
       }
+
       return {
-        count: Math.max(0, Number(parsed.count) || 0),
-        reset: Number(parsed.reset)
+        count:
+          Math.max(
+            0,
+            Number(parsed.count) || 0
+          ),
+
+        reset:
+          Number(parsed.reset)
       };
     } catch (err) {
-      return { count: 0, reset: Date.now() + WINDOW_MS };
+      return {
+        count: 0,
+        reset:
+          Date.now() +
+          WINDOW_MS
+      };
     }
   }
 
   function saveQuota(quota) {
-    localStorage.setItem(QUOTA_KEY, JSON.stringify(quota));
+    try {
+      localStorage.setItem(
+        QUOTA_KEY,
+        JSON.stringify(quota)
+      );
+    } catch (err) {}
   }
 
   function remainingAsks() {
-    return Math.max(0, MAX_ASKS - getQuota().count);
+    return Math.max(
+      0,
+      MAX_ASKS -
+        getQuota().count
+    );
   }
 
   function countWords(value) {
-    const trimmed = String(value || "").trim();
-    if (!trimmed) return 0;
+    const trimmed =
+      String(value || "")
+        .trim();
+
+    if (!trimmed) {
+      return 0;
+    }
+
     return trimmed.split(/\s+/).length;
   }
 
-  function syncRemainingFromServer(remaining) {
-    if (typeof remaining !== "number" || !isFinite(remaining)) return;
-    const quota = getQuota();
-    quota.count = Math.max(0, Math.min(MAX_ASKS, MAX_ASKS - Math.max(0, remaining)));
+  function syncRemainingFromServer(
+    remaining
+  ) {
+    if (
+      typeof remaining !== "number" ||
+      !isFinite(remaining)
+    ) {
+      return;
+    }
+
+    const quota =
+      getQuota();
+
+    quota.count =
+      Math.max(
+        0,
+        Math.min(
+          MAX_ASKS,
+          MAX_ASKS -
+            Math.max(
+              0,
+              remaining
+            )
+        )
+      );
+
     saveQuota(quota);
+
     renderQuota();
   }
 
   function getSessionId() {
     try {
-      let id = localStorage.getItem(SESSION_KEY);
+      let id =
+        localStorage.getItem(
+          SESSION_KEY
+        );
+
       if (!id) {
-        id = (window.crypto && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : "s" + Date.now() + Math.random().toString(16).slice(2);
-        localStorage.setItem(SESSION_KEY, id);
+        id =
+          (
+            window.crypto &&
+            crypto.randomUUID
+          )
+            ? crypto.randomUUID()
+            : "s" +
+              Date.now() +
+              Math.random()
+                .toString(16)
+                .slice(2);
+
+        localStorage.setItem(
+          SESSION_KEY,
+          id
+        );
       }
+
       return id;
     } catch (err) {
       return "s" + Date.now();
@@ -1150,459 +2095,1895 @@
   }
 
   function markAskUsed() {
-    const quota = getQuota();
+    const quota =
+      getQuota();
+
     quota.count += 1;
+
     saveQuota(quota);
+
     renderQuota();
   }
 
   function forceLimit() {
-    const quota = getQuota();
-    quota.count = MAX_ASKS;
+    const quota =
+      getQuota();
+
+    quota.count =
+      MAX_ASKS;
+
     saveQuota(quota);
+
     limitReached = true;
+
     renderQuota();
+
     setChatEnabled(false);
   }
 
   function renderQuota() {
-    const left = remainingAsks();
-    limitReached = left <= 0;
+    const left =
+      remainingAsks();
+
+    limitReached =
+      left <= 0;
+
     if (quotaDots) {
       quotaDots.innerHTML = "";
-      // Keep the existing pill design, but avoid drawing 20+ dots
-      const visualDots = Math.min(MAX_ASKS, 10);
-      const usedVisual = visualDots - Math.ceil((left / MAX_ASKS) * visualDots);
-      for (let i = 0; i < visualDots; i += 1) {
-        const dot = document.createElement("span");
-        if (i < usedVisual) dot.className = "used";
-        quotaDots.appendChild(dot);
+
+      const visualDots =
+        Math.min(
+          MAX_ASKS,
+          10
+        );
+
+      const usedVisual =
+        visualDots -
+        Math.ceil(
+          (left / MAX_ASKS) *
+            visualDots
+        );
+
+      for (
+        let i = 0;
+        i < visualDots;
+        i += 1
+      ) {
+        const dot =
+          document.createElement(
+            "span"
+          );
+
+        if (i < usedVisual) {
+          dot.className =
+            "used";
+        }
+
+        quotaDots.appendChild(
+          dot
+        );
       }
     }
+
     if (quotaLabel) {
-      quotaLabel.textContent = left === 1 ? "1 message left today" : left + " messages left today";
+      quotaLabel.textContent =
+        left === 1
+          ? "1 message left today"
+          : left +
+            " messages left today";
     }
+
     if (quotaNote) {
-      quotaNote.textContent = limitReached
-        ? "Daily free limit reached. Please come back tomorrow."
-        : "You have " + left + " free message" + (left === 1 ? "" : "s") + " left today.";
+      quotaNote.textContent =
+        limitReached
+          ? "Daily free limit reached. Please come back tomorrow."
+          : "You have " +
+            left +
+            " free message" +
+            (left === 1
+              ? ""
+              : "s") +
+            " left today.";
     }
   }
 
-  function setChatEnabled(enabled) {
-    const allow = enabled && !isBusy && !limitReached;
-    chatQuery.disabled = !allow;
-    chatSubmit.disabled = !allow;
-    app.querySelectorAll(".chat-chip[data-chat-query]").forEach(function (chip) {
-      chip.disabled = !allow;
-    });
+  function setChatEnabled(
+    enabled
+  ) {
+    const allow =
+      enabled &&
+      !isBusy &&
+      !limitReached;
+
+    chatQuery.disabled =
+      !allow;
+
+    chatSubmit.disabled =
+      !allow;
+
+    app
+      .querySelectorAll(
+        ".chat-chip[data-chat-query]"
+      )
+      .forEach(
+        function (chip) {
+          chip.disabled =
+            !allow;
+        }
+      );
+
     if (limitReached) {
-      chatQuery.placeholder = "Daily free limit reached — come back tomorrow";
+      chatQuery.placeholder =
+        "Daily free limit reached — come back tomorrow";
     } else {
-      chatQuery.placeholder = "Ask about a scent, mood, or occasion";
+      chatQuery.placeholder =
+        "Ask about a scent, mood, or occasion";
     }
   }
 
-  function showStep(stepNumber) {
-    app.querySelectorAll(".finder-step").forEach(function (step) {
-      step.classList.remove("active");
-    });
-    const target = document.getElementById("step-" + stepNumber + "-" + sectionId);
-    if (target) target.classList.add("active");
+  function showStep(
+    stepNumber
+  ) {
+    app
+      .querySelectorAll(
+        ".finder-step"
+      )
+      .forEach(
+        function (step) {
+          step.classList.remove(
+            "active"
+          );
+        }
+      );
 
-    window.setTimeout(function () {
-      if (stepNumber === 1) landingQuery.focus();
-      if (stepNumber === 2) customerEmailInput.focus();
-      if (stepNumber === 3 && !limitReached) chatQuery.focus();
-    }, 350);
+    const target =
+      document.getElementById(
+        "step-" +
+          stepNumber +
+          "-" +
+          sectionId
+      );
+
+    if (target) {
+      target.classList.add(
+        "active"
+      );
+    }
+
+    window.setTimeout(
+      function () {
+        if (
+          stepNumber === 1
+        ) {
+          landingQuery.focus();
+        }
+
+        if (
+          stepNumber === 2
+        ) {
+          customerEmailInput.focus();
+        }
+
+        if (
+          stepNumber === 3 &&
+          !limitReached
+        ) {
+          chatQuery.focus();
+        }
+      },
+      350
+    );
   }
 
-  function updateMoodBackground(query, hex) {
-    if (hex && /^#[0-9a-fA-F]{3,8}$/.test(hex)) {
-      app.style.setProperty("--sf-mood-hex", hex);
-      app.setAttribute("data-mood", "custom");
+  function updateMoodBackground(
+    query,
+    hex
+  ) {
+    if (
+      hex &&
+      /^#[0-9a-fA-F]{3,8}$/.test(
+        hex
+      )
+    ) {
+      app.style.setProperty(
+        "--sf-mood-hex",
+        hex
+      );
+
+      app.setAttribute(
+        "data-mood",
+        "custom"
+      );
+
       return;
     }
-    app.style.removeProperty("--sf-mood-hex");
-    const normalized = String(query || "").toLowerCase();
-    if (/fresh|brunch|clean|citrus|summer|green/.test(normalized)) {
-      app.setAttribute("data-mood", "fresh");
-    } else if (/tobacco|vanilla|warm|amber|cozy/.test(normalized)) {
-      app.setAttribute("data-mood", "amber");
-    } else if (/sexy|date|night|seductive/.test(normalized)) {
-      app.setAttribute("data-mood", "night");
-    } else if (/floral|rose|jasmine/.test(normalized)) {
-      app.setAttribute("data-mood", "floral");
+
+    app.style.removeProperty(
+      "--sf-mood-hex"
+    );
+
+    const normalized =
+      String(query || "")
+        .toLowerCase();
+
+    if (
+      /fresh|brunch|clean|citrus|summer|green/.test(
+        normalized
+      )
+    ) {
+      app.setAttribute(
+        "data-mood",
+        "fresh"
+      );
+    } else if (
+      /tobacco|vanilla|warm|amber|cozy/.test(
+        normalized
+      )
+    ) {
+      app.setAttribute(
+        "data-mood",
+        "amber"
+      );
+    } else if (
+      /sexy|date|night|seductive/.test(
+        normalized
+      )
+    ) {
+      app.setAttribute(
+        "data-mood",
+        "night"
+      );
+    } else if (
+      /floral|rose|jasmine/.test(
+        normalized
+      )
+    ) {
+      app.setAttribute(
+        "data-mood",
+        "floral"
+      );
     } else {
-      app.setAttribute("data-mood", "default");
+      app.setAttribute(
+        "data-mood",
+        "default"
+      );
     }
   }
 
   function scrollThread() {
-    chatThread.scrollTop = chatThread.scrollHeight;
+    chatThread.scrollTop =
+      chatThread.scrollHeight;
   }
 
-  function appendUserMessage(text) {
-    const row = document.createElement("div");
-    row.className = "chat-row user";
-    row.innerHTML = "<div class='user-bubble'>" + escapeHtml(text) + "</div>";
-    chatThread.appendChild(row);
-    conversation.push({ role: "user", content: text });
-    scrollThread();
-  }
+  function appendUserMessage(
+    text
+  ) {
+    const row =
+      document.createElement(
+        "div"
+      );
 
-  function appendBotMessage(text, extraHtml) {
-    const row = document.createElement("div");
-    row.className = "chat-row bot";
+    row.className =
+      "chat-row user";
+
     row.innerHTML =
-      "<div class='bot-bubble'><strong>AI Scent Finder</strong><br><br>" +
-      escapeHtml(text).replace(/\n/g, "<br>") +
-      (extraHtml || "") +
+      "<div class='user-bubble'>" +
+      escapeHtml(text) +
       "</div>";
-    chatThread.appendChild(row);
-    conversation.push({ role: "assistant", content: text });
+
+    chatThread.appendChild(
+      row
+    );
+
+    conversation.push({
+      role: "user",
+      content: text
+    });
+
     scrollThread();
+  }
+
+  function appendBotMessage(
+    text
+  ) {
+    const row =
+      document.createElement(
+        "div"
+      );
+
+    row.className =
+      "chat-row bot";
+
+    const shortReply =
+      shortenAiReply(text);
+
+    row.innerHTML =
+      "<div class='bot-bubble'>" +
+      "<strong>AI Scent Finder</strong>" +
+      "<br><br>" +
+      "<div class='ai-short-reply'>" +
+      escapeHtml(
+        shortReply
+      ).replace(
+        /\n/g,
+        "<br>"
+      ) +
+      "</div>" +
+      "</div>";
+
+    chatThread.appendChild(
+      row
+    );
+
+    conversation.push({
+      role: "assistant",
+      content: shortReply
+    });
+
+    scrollThread();
+
     return row;
   }
 
-  function appendLimitCard(message) {
-    const row = document.createElement("div");
-    row.className = "chat-row bot";
+  function appendLimitCard(
+    message
+  ) {
+    const row =
+      document.createElement(
+        "div"
+      );
+
+    row.className =
+      "chat-row bot";
+
     row.innerHTML =
-      "<div class='limit-card'><strong>Daily free limit reached</strong>" +
-      escapeHtml(message || DAILY_LIMIT_MESSAGE) +
+      "<div class='limit-card'>" +
+      "<strong>Daily free limit reached</strong>" +
+      escapeHtml(
+        message ||
+          DAILY_LIMIT_MESSAGE
+      ) +
       "</div>";
-    chatThread.appendChild(row);
+
+    chatThread.appendChild(
+      row
+    );
+
     scrollThread();
   }
 
   function showTyping() {
-    const row = document.createElement("div");
-    row.className = "chat-row bot";
-    row.id = "typing-" + sectionId;
+    const row =
+      document.createElement(
+        "div"
+      );
+
+    row.className =
+      "chat-row bot";
+
+    row.id =
+      "typing-" +
+      sectionId;
+
     row.innerHTML =
-      "<div class='bot-bubble'><div class='loading-state'>Finding your scent<span class='loading-dots'><span></span><span></span><span></span></span></div></div>";
-    chatThread.appendChild(row);
+      "<div class='bot-bubble'>" +
+      "<div class='loading-state'>" +
+      "Finding your scent" +
+      "<span class='loading-dots'>" +
+      "<span></span>" +
+      "<span></span>" +
+      "<span></span>" +
+      "</span>" +
+      "</div>" +
+      "</div>";
+
+    chatThread.appendChild(
+      row
+    );
+
     scrollThread();
   }
 
   function hideTyping() {
-    const typing = document.getElementById("typing-" + sectionId);
-    if (typing) typing.remove();
+    const typing =
+      document.getElementById(
+        "typing-" +
+        sectionId
+      );
+
+    if (typing) {
+      typing.remove();
+    }
   }
 
-  function productCardHtml(product, label, cardIndex) {
-    var cardLabel = label || "Closest match";
-    var idxStyle = (typeof cardIndex === "number" && cardIndex > 0)
-      ? " style='--card-index:" + cardIndex + "'"
-      : "";
-    const image = withHttps(product.image);
-    const imageHtml = image
-      ? "<div class='product-image-wrap'><img class='product-image' src='" + escapeHtml(image) + "' alt='" + escapeHtml(product.title) + "' loading='lazy'></div>"
-      : "<div class='product-image-wrap'></div>";
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT NORMALIZATION
+   * ---------------------------------------------------------
+   *
+   * The API may return products in different structures.
+   * We normalize all supported structures here.
+   */
+
+  function getHandleFromUrl(
+    url
+  ) {
+    if (!url) {
+      return "";
+    }
+
+    const value =
+      String(url).trim();
+
+    const match =
+      value.match(
+        /\/products\/([^?#/]+)/i
+      );
+
+    if (!match) {
+      return "";
+    }
+
+    return decodeURIComponent(
+      match[1]
+    );
+  }
+
+  function cleanHandle(
+    handle
+  ) {
+    if (!handle) {
+      return "";
+    }
+
+    let value =
+      String(handle)
+        .trim();
+
+    value =
+      value.replace(
+       (/^.*\/products\//i),
+        ""
+      );
+
+    value =
+      value.split("?")[0];
+
+    value =
+      value.split("#")[0];
+
+    value =
+      value.replace(
+        /^\/+/,
+        ""
+      );
+
+    value =
+      value.replace(
+        /\/+$/,
+        ""
+      );
+
+    return value;
+  }
+
+  function normalizeProduct(
+    item
+  ) {
+    if (!item) {
+      return null;
+    }
+
+    if (typeof item === "string") {
+      const handle =
+        cleanHandle(
+          item
+        );
+
+      if (!handle) {
+        return null;
+      }
+
+      return {
+        handle: handle,
+        title: "",
+        url:
+          "/products/" +
+          handle
+      };
+    }
+
+    if (
+      typeof item !==
+      "object"
+    ) {
+      return null;
+    }
+
+    const url =
+      item.url ||
+      item.product_url ||
+      item.productUrl ||
+      item.link ||
+      "";
+
+    let handle =
+      item.handle ||
+      item.product_handle ||
+      item.productHandle ||
+      item.slug ||
+      "";
+
+    if (!handle && url) {
+      handle =
+        getHandleFromUrl(
+          url
+        );
+    }
+
+    handle =
+      cleanHandle(
+        handle
+      );
+
+    if (!handle) {
+      return null;
+    }
+
+    return {
+      handle: handle,
+
+      title:
+        item.title ||
+        item.name ||
+        item.product_title ||
+        "",
+
+      url:
+        url ||
+        "/products/" +
+          handle,
+
+      description:
+        item.description ||
+        item.product_description ||
+        "",
+
+      price:
+        item.price ||
+        "",
+
+      image:
+        item.image ||
+        item.image_url ||
+        item.imageUrl ||
+        item.featured_image ||
+        ""
+    };
+  }
+
+  function collectProductItems(
+    source,
+    output,
+    seen
+  ) {
+    if (!source) {
+      return;
+    }
+
+    if (
+      Array.isArray(source)
+    ) {
+      source.forEach(
+        function (item) {
+          collectProductItems(
+            item,
+            output,
+            seen
+          );
+        }
+      );
+
+      return;
+    }
+
+    const normalized =
+      normalizeProduct(
+        source
+      );
+
+    if (
+      normalized &&
+      normalized.handle
+    ) {
+      if (
+        !seen.has(
+          normalized.handle
+        )
+      ) {
+        seen.add(
+          normalized.handle
+        );
+
+        output.push(
+          normalized
+        );
+      }
+
+      return;
+    }
+
+    if (
+      typeof source !==
+      "object"
+    ) {
+      return;
+    }
+
+    /*
+     * Known API structures.
+     */
+    const possibleKeys = [
+      "products",
+      "recommendations",
+      "recommended_products",
+      "recommendedProducts",
+      "matches",
+      "results",
+      "items",
+      "product",
+      "recommendation",
+      "data"
+    ];
+
+    possibleKeys.forEach(
+      function (key) {
+        if (
+          source[key]
+        ) {
+          collectProductItems(
+            source[key],
+            output,
+            seen
+          );
+        }
+      }
+    );
+  }
+
+  function extractProducts(
+    data
+  ) {
+    const products = [];
+    const seen =
+      new Set();
+
+    /*
+     * First look through all common API structures.
+     */
+    collectProductItems(
+      data &&
+        data.products,
+      products,
+      seen
+    );
+
+    collectProductItems(
+      data &&
+        data.recommendations,
+      products,
+      seen
+    );
+
+    collectProductItems(
+      data &&
+        data.recommended_products,
+      products,
+      seen
+    );
+
+    collectProductItems(
+      data &&
+        data.matches,
+      products,
+      seen
+    );
+
+    collectProductItems(
+      data &&
+        data.results,
+      products,
+      seen
+    );
+
+    collectProductItems(
+      data &&
+        data.product,
+      products,
+      seen
+    );
+
+    /*
+     * Old single-handle API format.
+     */
+    if (
+      data &&
+      data.handle
+    ) {
+      collectProductItems(
+        {
+          handle:
+            data.handle,
+          title:
+            data.title || "",
+          url:
+            data.url || ""
+        },
+        products,
+        seen
+      );
+    }
+
+    /*
+     * Some APIs return a single product object
+     * under recommended_product.
+     */
+    if (
+      data &&
+      data.recommended_product
+    ) {
+      collectProductItems(
+        data.recommended_product,
+        products,
+        seen
+      );
+    }
+
+    /*
+     * Last fallback:
+     * find Shopify product URLs in the AI reply.
+     *
+     * Example:
+     * /products/ocean-ember
+     */
+    const reply =
+      data &&
+      typeof data.reply === "string"
+        ? data.reply
+        : "";
+
+    if (reply) {
+      const urlMatches =
+        reply.match(
+          /\/products\/[a-zA-Z0-9._~-]+/gi
+        );
+
+      if (urlMatches) {
+        urlMatches.forEach(
+          function (url) {
+            collectProductItems(
+              {
+                handle:
+                  getHandleFromUrl(
+                    url
+                  ),
+                url: url
+              },
+              products,
+              seen
+            );
+          }
+        );
+      }
+    }
+
+    return products.slice(
+      0,
+      MAX_DISPLAY_PRODUCTS
+    );
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * SHOPIFY PRODUCT LOOKUP
+   * ---------------------------------------------------------
+   */
+
+  function loadShopifyProduct(
+    handle,
+    fallbackTitle
+  ) {
+    const safeHandle =
+      cleanHandle(
+        handle
+      );
+
+    if (!safeHandle) {
+      return Promise.resolve(
+        null
+      );
+    }
+
+    return fetch(
+      "/products/" +
+        encodeURIComponent(
+          safeHandle
+        ) +
+        ".js",
+      {
+        headers: {
+          Accept:
+            "application/json"
+        },
+        credentials:
+          "same-origin"
+      }
+    )
+      .then(
+        function (
+          response
+        ) {
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              "product_not_found"
+            );
+          }
+
+          return response.json();
+        }
+      )
+      .then(
+        function (
+          product
+        ) {
+          return {
+            handle:
+              safeHandle,
+
+            title:
+              product.title ||
+              fallbackTitle ||
+              "Your fragrance match",
+
+            description:
+              stripHtml(
+                product.description
+              ).slice(
+                0,
+                140
+              ),
+
+            price:
+              product.price
+                ? formatMoney(
+                    product.price
+                  )
+                : "",
+
+            image:
+              product.featured_image ||
+              (
+                product.images &&
+                product.images[0]
+              ) ||
+              "",
+
+            url:
+              product.url ||
+              "/products/" +
+                safeHandle
+          };
+        }
+      )
+      .catch(
+        function () {
+          /*
+           * We still render a card when the API
+           * gave us a valid handle.
+           */
+          return {
+            handle:
+              safeHandle,
+
+            title:
+              fallbackTitle ||
+              "Your fragrance match",
+
+            description: "",
+
+            price: "",
+
+            image: "",
+
+            url:
+              "/products/" +
+              safeHandle
+          };
+        }
+      );
+  }
+
+  function productCardHtml(
+    product,
+    label,
+    cardIndex
+  ) {
+    if (
+      !product ||
+      !product.handle
+    ) {
+      return "";
+    }
+
+    const cardLabel =
+      label ||
+      "Recommended";
+
+    const idxStyle =
+      typeof cardIndex ===
+        "number" &&
+      cardIndex > 0
+        ? " style='--card-index:" +
+          cardIndex +
+          "'"
+        : "";
+
+    const image =
+      withHttps(
+        product.image
+      );
+
+    const imageHtml =
+      image
+        ? (
+            "<div class='product-image-wrap'>" +
+            "<img " +
+            "class='product-image' " +
+            "src='" +
+            escapeHtml(
+              image
+            ) +
+            "' " +
+            "alt='" +
+            escapeHtml(
+              product.title ||
+                "Fragrance"
+            ) +
+            "' " +
+            "loading='lazy'>" +
+            "</div>"
+          )
+        : (
+            "<div class='product-image-wrap'>" +
+            "</div>"
+          );
 
     return (
-      "<article class='product-card'" + idxStyle + ">" +
+      "<article class='product-card'" +
+      idxStyle +
+      ">" +
+
         imageHtml +
+
         "<div class='product-info'>" +
-          "<div class='product-label'>" + escapeHtml(cardLabel) + "</div>" +
-          "<h3 class='product-title'>" + escapeHtml(product.title) + "</h3>" +
-          (product.description ? "<p class='product-description'>" + escapeHtml(product.description) + "</p>" : "") +
-          (product.price ? "<div class='product-price'>" + escapeHtml(product.price) + "</div>" : "") +
-          (product.url
-            ? "<a class='product-link' href='" + escapeHtml(product.url) + "'>Discover scent \u2192</a>"
-            : "") +
+
+          "<div class='product-label'>" +
+          escapeHtml(
+            cardLabel
+          ) +
+          "</div>" +
+
+          "<h3 class='product-title'>" +
+          escapeHtml(
+            product.title ||
+              "Your fragrance match"
+          ) +
+          "</h3>" +
+
+          (
+            product.description
+              ? (
+                  "<p class='product-description'>" +
+                  escapeHtml(
+                    product.description
+                  ) +
+                  "</p>"
+                )
+              : ""
+          ) +
+
+          (
+            product.price
+              ? (
+                  "<div class='product-price'>" +
+                  escapeHtml(
+                    product.price
+                  ) +
+                  "</div>"
+                )
+              : ""
+          ) +
+
+          (
+            product.url
+              ? (
+                  "<a " +
+                  "class='product-link' " +
+                  "href='" +
+                  escapeHtml(
+                    product.url
+                  ) +
+                  "'>" +
+                  "Discover scent →" +
+                  "</a>"
+                )
+              : ""
+          ) +
+
         "</div>" +
+
       "</article>"
     );
   }
 
-  function loadShopifyProduct(handle, fallbackTitle) {
-    return fetch("/products/" + encodeURIComponent(handle) + ".js", {
-      headers: { Accept: "application/json" }
-    })
-      .then(function (response) {
-        if (!response.ok) throw new Error("product_not_found");
-        return response.json();
-      })
-      .then(function (product) {
-        return {
-          title: product.title || fallbackTitle || "Your fragrance match",
-          description: stripHtml(product.description).slice(0, 140),
-          price: product.price ? formatMoney(product.price) : "",
-          image: product.featured_image || (product.images && product.images[0]) || "",
-          url: product.url || "/products/" + handle
-        };
-      })
-      .catch(function () {
-        return {
-          title: fallbackTitle || "Your fragrance match",
-          description: "",
-          price: "",
-          image: "",
-          url: "/products/" + handle
-        };
-      });
-  }
+  /*
+   * Render cards independently of the AI reply.
+   */
+  function renderProductCards(
+    products
+  ) {
+    if (
+      !products ||
+      !products.length
+    ) {
+      return;
+    }
 
-  function submitEmailToShopify(email) {
-    // Shopify customer/newsletter form — must include accepts_marketing
-    // or many stores will not create a marketing customer record.
-    const params = new URLSearchParams();
-    params.append("form_type", "customer");
-    params.append("utf8", "\u2713");
-    params.append("contact[email]", email);
-    params.append("contact[tags]", "AI Scent Finder, email-marketing-consent, newsletter");
-    params.append("contact[accepts_marketing]", "true");
+    const uniqueProducts =
+      [];
 
-    fetch("/contact", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        Accept: "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With": "XMLHttpRequest"
-      },
-      body: params.toString(),
-      credentials: "same-origin"
-    })
-      .then(function (response) {
-        if (!response.ok) {
-          console.warn("AI Scent Finder newsletter signup HTTP", response.status);
+    const seen =
+      new Set();
+
+    products.forEach(
+      function (product) {
+        if (
+          !product ||
+          !product.handle
+        ) {
+          return;
         }
-      })
-      .catch(function (err) {
-        console.warn("AI Scent Finder newsletter signup failed", err);
-      });
+
+        const handle =
+          cleanHandle(
+            product.handle
+          );
+
+        if (!handle) {
+          return;
+        }
+
+        if (
+          seen.has(
+            handle
+          )
+        ) {
+          return;
+        }
+
+        seen.add(handle);
+
+        uniqueProducts.push({
+          ...product,
+          handle: handle
+        });
+      }
+    );
+
+    const limited =
+      uniqueProducts.slice(
+        0,
+        MAX_DISPLAY_PRODUCTS
+      );
+
+    if (!limited.length) {
+      return;
+    }
+
+    const row =
+      document.createElement(
+        "div"
+      );
+
+    row.className =
+      "chat-row bot";
+
+    if (
+      limited.length === 1
+    ) {
+      row.innerHTML =
+        productCardHtml(
+          limited[0],
+          "Closest match",
+          0
+        );
+    } else {
+      let gridHtml =
+        "<div class='product-grid'>";
+
+      limited.forEach(
+        function (
+          product,
+          index
+        ) {
+          gridHtml +=
+            productCardHtml(
+              product,
+              "Recommended",
+              index
+            );
+        }
+      );
+
+      gridHtml +=
+        "</div>";
+
+      row.innerHTML =
+        gridHtml;
+    }
+
+    chatThread.appendChild(
+      row
+    );
+
+    scrollThread();
   }
+
+  /*
+   * ---------------------------------------------------------
+   * SHOPIFY CUSTOMER EMAIL
+   * ---------------------------------------------------------
+   */
+
+  function submitEmailToShopify(
+    email
+  ) {
+    const params =
+      new URLSearchParams();
+
+    params.append(
+      "form_type",
+      "customer"
+    );
+
+    params.append(
+      "utf8",
+      "✓"
+    );
+
+    params.append(
+      "contact[email]",
+      email
+    );
+
+    params.append(
+      "contact[tags]",
+      "AI Scent Finder, email-marketing-consent, newsletter"
+    );
+
+    params.append(
+      "contact[accepts_marketing]",
+      "true"
+    );
+
+    fetch(
+      "/contact",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/x-www-form-urlencoded; charset=UTF-8",
+
+          Accept:
+            "application/json, text/javascript, */*; q=0.01",
+
+          "X-Requested-With":
+            "XMLHttpRequest"
+        },
+
+        body:
+          params.toString(),
+
+        credentials:
+          "same-origin"
+      }
+    )
+      .then(
+        function (
+          response
+        ) {
+          if (
+            !response.ok
+          ) {
+            console.warn(
+              "AI Scent Finder newsletter signup HTTP",
+              response.status
+            );
+          }
+        }
+      )
+      .catch(
+        function (err) {
+          console.warn(
+            "AI Scent Finder newsletter signup failed",
+            err
+          );
+        }
+      );
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * STEP 1
+   * ---------------------------------------------------------
+   */
 
   function handleLandingSubmit() {
-    const value = landingQuery.value.trim();
+    const value =
+      landingQuery.value.trim();
+
     if (!value) {
       landingQuery.focus();
       return;
     }
-    selectedQuery = value;
-    updateMoodBackground(selectedQuery);
+
+    selectedQuery =
+      value;
+
+    updateMoodBackground(
+      selectedQuery
+    );
+
     showStep(2);
   }
 
+  /*
+   * ---------------------------------------------------------
+   * STEP 2
+   * ---------------------------------------------------------
+   */
+
   function handleEmailSubmit() {
-    const email = customerEmailInput.value.trim();
-    if (!isValidEmail(email)) {
-      emailError.hidden = false;
+    const email =
+      customerEmailInput.value.trim();
+
+    if (
+      !isValidEmail(
+        email
+      )
+    ) {
+      emailError.hidden =
+        false;
+
       customerEmailInput.focus();
+
       return;
     }
-    emailError.hidden = true;
-    customerEmail = email;
-    submitEmailToShopify(customerEmail);
-    chatThread.innerHTML = "";
-    conversation = [];
-    previousHandles = [];
+
+    emailError.hidden =
+      true;
+
+    customerEmail =
+      email;
+
+    submitEmailToShopify(
+      customerEmail
+    );
+
+    chatThread.innerHTML =
+      "";
+
+    conversation =
+      [];
+
+    previousHandles =
+      [];
+
     renderQuota();
+
     showStep(3);
-    window.setTimeout(function () {
-      askAssistant(selectedQuery);
-    }, 400);
-  }
 
-  function askAssistant(query) {
-    const text = String(query || "").trim();
-    if (!text || isBusy) return;
-
-    if (remainingAsks() <= 0) {
-      forceLimit();
-      appendLimitCard(DAILY_LIMIT_MESSAGE);
-      return;
-    }
-
-    if (countWords(text) > MAX_INPUT_WORDS) {
-      appendBotMessage("Please keep your message under 800 words so I can help you find a scent faster.");
-      return;
-    }
-
-    isBusy = true;
-    setChatEnabled(false);
-    appendUserMessage(text);
-    showTyping();
-    updateMoodBackground(text);
-    if (chatQuery) chatQuery.value = "";
-
-    fetch(AI_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json"
+    window.setTimeout(
+      function () {
+        askAssistant(
+          selectedQuery
+        );
       },
-      body: JSON.stringify({
-        text: text,
-        email: customerEmail,
-        session_id: getSessionId(),
-        history: conversation.slice(0, -1).slice(-HISTORY_LIMIT),
-        previous_handles: previousHandles
-      })
-    })
-      .then(function (response) {
-        return response.json().then(function (data) {
-          return { ok: response.ok, status: response.status, data: data || {} };
-        }).catch(function () {
-          return { ok: false, status: response.status, data: {} };
-        });
-      })
-      .then(function (result) {
-        hideTyping();
-        const data = result.data || {};
-
-        if (result.status === 429 || data.error === "rate_limit_exceeded") {
-          syncRemainingFromServer(0);
-          forceLimit();
-          appendLimitCard(data.message || DAILY_LIMIT_MESSAGE);
-          return;
-        }
-
-        if (data.error === "message_too_long") {
-          appendBotMessage(data.message || "Please keep your message under 800 words so I can help you find a scent faster.");
-          return;
-        }
-
-        if (!result.ok) {
-          appendBotMessage(data.message || "I had trouble checking the collection just now. Please ask me again in a moment.");
-          return;
-        }
-
-        markAskUsed();
-        if (typeof data.remaining === "number") {
-          syncRemainingFromServer(data.remaining);
-        }
-
-        const reply = data.reply || "Tell me a little more about the scent you want and I will match it from our collection.";
-        updateMoodBackground(text, data.bg_color);
-        appendBotMessage(reply);
-
-        if (data.intent === "recommend" && data.products && data.products.length) {
-          // Add all recommended handles for follow-up context
-          data.products.forEach(function (p) {
-            if (p.handle && previousHandles.indexOf(p.handle) === -1) {
-              previousHandles.push(p.handle);
-            }
-          });
-
-          var productsToLoad = data.products.slice(0, 8);
-          var isMulti = productsToLoad.length > 1;
-
-          Promise.all(
-            productsToLoad.map(function (p) {
-              return loadShopifyProduct(p.handle, p.title);
-            })
-          ).then(function (loadedProducts) {
-            var row = document.createElement("div");
-            row.className = "chat-row bot";
-            if (isMulti) {
-              var gridHtml = "<div class='product-grid'>";
-              loadedProducts.forEach(function (product, idx) {
-                gridHtml += productCardHtml(product, "Recommended", idx);
-              });
-              gridHtml += "</div>";
-              row.innerHTML = gridHtml;
-            } else {
-              row.innerHTML = productCardHtml(loadedProducts[0], "Closest match", 0);
-            }
-            chatThread.appendChild(row);
-            scrollThread();
-          });
-        } else if (data.intent === "recommend" && data.handle) {
-          // Fallback: old single-handle path
-          previousHandles.push(data.handle);
-          loadShopifyProduct(data.handle, data.title).then(function (product) {
-            var row = document.createElement("div");
-            row.className = "chat-row bot";
-            row.innerHTML = productCardHtml(product, "Closest match", 0);
-            chatThread.appendChild(row);
-            scrollThread();
-          });
-        }
-      })
-      .catch(function () {
-        hideTyping();
-        appendBotMessage("I could not reach the fragrance concierge just now. Please try again in a moment.");
-      })
-      .finally(function () {
-        isBusy = false;
-        renderQuota();
-        setChatEnabled(true);
-      });
+      400
+    );
   }
 
-  landingSubmit.addEventListener("click", handleLandingSubmit);
-  landingQuery.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleLandingSubmit();
-    }
-  });
+  /*
+   * ---------------------------------------------------------
+   * MAIN AI REQUEST
+   * ---------------------------------------------------------
+   */
 
-  app.querySelectorAll(".landing-option").forEach(function (button) {
-    button.addEventListener("click", function () {
-      const query = this.getAttribute("data-query");
-      if (!query) return;
-      selectedQuery = query;
-      landingQuery.value = query;
-      updateMoodBackground(selectedQuery);
-      showStep(2);
-    });
-  });
+  function askAssistant(
+    query
+  ) {
+    const text =
+      String(query || "")
+        .trim();
 
-  emailSubmit.addEventListener("click", handleEmailSubmit);
-  customerEmailInput.addEventListener("input", function () {
-    emailError.hidden = true;
-  });
-  customerEmailInput.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleEmailSubmit();
+    if (
+      !text ||
+      isBusy
+    ) {
+      return;
     }
-  });
+
+    if (
+      remainingAsks() <=
+      0
+    ) {
+      forceLimit();
+
+      appendLimitCard(
+        DAILY_LIMIT_MESSAGE
+      );
+
+      return;
+    }
+
+    if (
+      countWords(text) >
+      MAX_INPUT_WORDS
+    ) {
+      appendBotMessage(
+        "Please keep your message under 800 words so I can help you find a scent faster."
+      );
+
+      return;
+    }
+
+    isBusy =
+      true;
+
+    setChatEnabled(
+      false
+    );
+
+    appendUserMessage(
+      text
+    );
+
+    showTyping();
+
+    updateMoodBackground(
+      text
+    );
+
+    chatQuery.value =
+      "";
+
+    fetch(
+      AI_ENDPOINT,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          Accept:
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            text: text,
+
+            email:
+              customerEmail,
+
+            session_id:
+              getSessionId(),
+
+            history:
+              conversation
+                .slice(0, -1)
+                .slice(
+                  -HISTORY_LIMIT
+                ),
+
+            previous_handles:
+              previousHandles
+          })
+      }
+    )
+      .then(
+        function (
+          response
+        ) {
+          return response
+            .json()
+            .then(
+              function (
+                data
+              ) {
+                return {
+                  ok:
+                    response.ok,
+
+                  status:
+                    response.status,
+
+                  data:
+                    data || {}
+                };
+              }
+            )
+            .catch(
+              function () {
+                return {
+                  ok: false,
+
+                  status:
+                    response.status,
+
+                  data: {}
+                };
+              }
+            );
+        }
+      )
+      .then(
+        function (
+          result
+        ) {
+          hideTyping();
+
+          const data =
+            result.data || {};
+
+          /*
+           * SERVER RATE LIMIT
+           */
+          if (
+            result.status ===
+              429 ||
+            data.error ===
+              "rate_limit_exceeded"
+          ) {
+            syncRemainingFromServer(
+              0
+            );
+
+            forceLimit();
+
+            appendLimitCard(
+              data.message ||
+                DAILY_LIMIT_MESSAGE
+            );
+
+            return;
+          }
+
+          /*
+           * MESSAGE TOO LONG
+           */
+          if (
+            data.error ===
+            "message_too_long"
+          ) {
+            appendBotMessage(
+              data.message ||
+                "Please keep your message under 800 words so I can help you find a scent faster."
+            );
+
+            return;
+          }
+
+          /*
+           * GENERAL API ERROR
+           */
+          if (
+            !result.ok
+          ) {
+            appendBotMessage(
+              data.message ||
+                "I had trouble checking the collection just now. Please ask me again in a moment."
+            );
+
+            return;
+          }
+
+          /*
+           * Successful API call.
+           */
+          markAskUsed();
+
+          if (
+            typeof data.remaining ===
+              "number"
+          ) {
+            syncRemainingFromServer(
+              data.remaining
+            );
+          }
+
+          /*
+           * -------------------------------------------------
+           * PRODUCT EXTRACTION
+           * -------------------------------------------------
+           *
+           * IMPORTANT:
+           * This now happens BEFORE checking intent.
+           *
+           * Therefore the frontend no longer requires:
+           *
+           * data.intent === "recommend"
+           *
+           * to display product cards.
+           */
+          const products =
+            extractProducts(
+              data
+            );
+
+          /*
+           * Save handles for future AI context.
+           */
+          products.forEach(
+            function (
+              product
+            ) {
+              const handle =
+                cleanHandle(
+                  product.handle
+                );
+
+              if (
+                handle &&
+                previousHandles.indexOf(
+                  handle
+                ) === -1
+              ) {
+                previousHandles.push(
+                  handle
+                );
+              }
+            }
+          );
+
+          /*
+           * Also support old single-handle response.
+           */
+          if (
+            data.handle
+          ) {
+            const oldHandle =
+              cleanHandle(
+                data.handle
+              );
+
+            if (
+              oldHandle &&
+              previousHandles.indexOf(
+                oldHandle
+              ) === -1
+            ) {
+              previousHandles.push(
+                oldHandle
+              );
+            }
+          }
+
+          /*
+           * Update background.
+           */
+          updateMoodBackground(
+            text,
+            data.bg_color
+          );
+
+          /*
+           * -------------------------------------------------
+           * SHORT AI TEXT
+           * -------------------------------------------------
+           *
+           * Only maximum 3 sentences are displayed.
+           */
+          const reply =
+            data.reply ||
+            data.message ||
+            "Here are some fragrances that match your request.";
+
+          appendBotMessage(
+            reply
+          );
+
+          /*
+           * -------------------------------------------------
+           * PRODUCT CARDS
+           * -------------------------------------------------
+           *
+           * Product cards are rendered separately from
+           * the AI response.
+           */
+          if (
+            products.length
+          ) {
+            renderProductCards(
+              products
+            );
+          } else if (
+            data.handle
+          ) {
+            /*
+             * Final fallback for old API.
+             */
+            loadShopifyProduct(
+              data.handle,
+              data.title
+            ).then(
+              function (
+                product
+              ) {
+                if (
+                  product &&
+                  product.handle
+                ) {
+                  renderProductCards(
+                    [
+                      product
+                    ]
+                  );
+                }
+              }
+            );
+          }
+        }
+      )
+      .catch(
+        function (error) {
+          console.error(
+            "AI Scent Finder API error:",
+            error
+          );
+
+          hideTyping();
+
+          appendBotMessage(
+            "I could not reach the fragrance concierge just now. Please try again in a moment."
+          );
+        }
+      )
+      .finally(
+        function () {
+          isBusy =
+            false;
+
+          renderQuota();
+
+          setChatEnabled(
+            true
+          );
+        }
+      );
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * EVENTS
+   * ---------------------------------------------------------
+   */
+
+  landingSubmit.addEventListener(
+    "click",
+    handleLandingSubmit
+  );
+
+  landingQuery.addEventListener(
+    "keydown",
+    function (event) {
+      if (
+        event.key ===
+        "Enter"
+      ) {
+        event.preventDefault();
+
+        handleLandingSubmit();
+      }
+    }
+  );
+
+  app
+    .querySelectorAll(
+      ".landing-option"
+    )
+    .forEach(
+      function (button) {
+        button.addEventListener(
+          "click",
+          function () {
+            const query =
+              this.getAttribute(
+                "data-query"
+              );
+
+            if (!query) {
+              return;
+            }
+
+            selectedQuery =
+              query;
+
+            landingQuery.value =
+              query;
+
+            updateMoodBackground(
+              selectedQuery
+            );
+
+            showStep(2);
+          }
+        );
+      }
+    );
+
+  emailSubmit.addEventListener(
+    "click",
+    handleEmailSubmit
+  );
+
+  customerEmailInput.addEventListener(
+    "input",
+    function () {
+      emailError.hidden =
+        true;
+    }
+  );
+
+  customerEmailInput.addEventListener(
+    "keydown",
+    function (event) {
+      if (
+        event.key ===
+        "Enter"
+      ) {
+        event.preventDefault();
+
+        handleEmailSubmit();
+      }
+    }
+  );
 
   function handleChatSubmit() {
-    askAssistant(chatQuery.value.trim());
+    askAssistant(
+      chatQuery.value.trim()
+    );
   }
 
-  chatSubmit.addEventListener("click", handleChatSubmit);
-  chatQuery.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleChatSubmit();
+  chatSubmit.addEventListener(
+    "click",
+    handleChatSubmit
+  );
+
+  chatQuery.addEventListener(
+    "keydown",
+    function (event) {
+      if (
+        event.key ===
+        "Enter"
+      ) {
+        event.preventDefault();
+
+        handleChatSubmit();
+      }
     }
-  });
+  );
 
-  app.querySelectorAll(".chat-chip[data-chat-query]").forEach(function (button) {
-    button.addEventListener("click", function () {
-      const query = this.getAttribute("data-chat-query");
-      if (query) askAssistant(query);
-    });
-  });
+  app
+    .querySelectorAll(
+      ".chat-chip[data-chat-query]"
+    )
+    .forEach(
+      function (button) {
+        button.addEventListener(
+          "click",
+          function () {
+            const query =
+              this.getAttribute(
+                "data-chat-query"
+              );
 
-  restartButton.addEventListener("click", function () {
-    selectedQuery = "";
-    customerEmail = "";
-    isBusy = false;
-    conversation = [];
-    previousHandles = [];
-    landingQuery.value = "";
-    customerEmailInput.value = "";
-    chatQuery.value = "";
-    chatThread.innerHTML = "";
-    emailError.hidden = true;
-    app.removeAttribute("style");
-    app.setAttribute("data-mood", "default");
-    renderQuota();
-    setChatEnabled(true);
-    showStep(1);
-  });
+            if (query) {
+              askAssistant(
+                query
+              );
+            }
+          }
+        );
+      }
+    );
+
+  /*
+   * ---------------------------------------------------------
+   * RESTART
+   * ---------------------------------------------------------
+   */
+
+  restartButton.addEventListener(
+    "click",
+    function () {
+      selectedQuery =
+        "";
+
+      customerEmail =
+        "";
+
+      isBusy =
+        false;
+
+      conversation =
+        [];
+
+      previousHandles =
+        [];
+
+      landingQuery.value =
+        "";
+
+      customerEmailInput.value =
+        "";
+
+      chatQuery.value =
+        "";
+
+      chatThread.innerHTML =
+        "";
+
+      emailError.hidden =
+        true;
+
+      app.removeAttribute(
+        "style"
+      );
+
+      app.setAttribute(
+        "data-mood",
+        "default"
+      );
+
+      renderQuota();
+
+      setChatEnabled(
+        true
+      );
+
+      showStep(1);
+    }
+  );
+
+  /*
+   * ---------------------------------------------------------
+   * INITIALIZE
+   * ---------------------------------------------------------
+   */
 
   renderQuota();
-  setChatEnabled(true);
+
+  setChatEnabled(
+    true
+  );
+
   showStep(1);
+
 })();
 </script>
 
