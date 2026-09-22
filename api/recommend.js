@@ -1056,62 +1056,36 @@ async function ensureShopifyCustomer(email) {
   }
 }
 
+/**
+ * Returns true if the code looks like a hex hash (random internal token)
+ * or is marked as expired or is a Collabs/internal code.
+ */
+function isPublicCouponCode({ code, detail }) {
+  const c = String(code || "").toUpperCase();
+  const d = String(detail || "");
+
+  // Reject pure hex hashes (32+ hex chars — internal Shopify tokens)
+  if (/^[A-F0-9]{12,}$/.test(c)) return false;
+
+  // Reject codes that contain 'EXPIRED' in code or detail
+  if (/expired/i.test(c) || /expired/i.test(d)) return false;
+
+  // Reject Shopify Collabs internal codes
+  if (/collabs?/i.test(d)) return false;
+
+  // Reject codes whose detail mentions it's an internal/ambassador/commission code
+  if (/commission|ambassador|tier code|ugc/i.test(d)) return false;
+
+  return true;
+}
+
 async function loadPublishedCoupons() {
-  const fromEnv = parsePublishedCoupons(process.env.SHOPIFY_DISCOUNT_INFO);
-  if (!hasShopifyAdminAuth() || !getShopifyShop()) return fromEnv;
-
-  try {
-    const query = `{
-      codeDiscountNodes(first: 25, query: "status:active") {
-        nodes {
-          codeDiscount {
-            ... on DiscountCodeBasic {
-              title
-              status
-              codes(first: 10) { nodes { code } }
-            }
-            ... on DiscountCodeBxgy {
-              title
-              status
-              codes(first: 10) { nodes { code } }
-            }
-            ... on DiscountCodeFreeShipping {
-              title
-              status
-              codes(first: 10) { nodes { code } }
-            }
-          }
-        }
-      }
-    }`;
-
-    const data = await shopifyAdminGraphql(query);
-    const nodes = data?.codeDiscountNodes?.nodes || [];
-    const fromAdmin = [];
-    for (const node of nodes) {
-      const discount = node?.codeDiscount;
-      if (!discount || String(discount.status || "").toUpperCase() !== "ACTIVE") {
-        continue;
-      }
-      for (const entry of discount.codes?.nodes || []) {
-        if (entry?.code) {
-          fromAdmin.push({
-            code: String(entry.code).toUpperCase(),
-            detail: String(discount.title || "Active discount").trim(),
-          });
-        }
-      }
-    }
-
-    const merged = [...fromAdmin];
-    for (const coupon of fromEnv) {
-      if (!merged.some((item) => item.code === coupon.code)) merged.push(coupon);
-    }
-    return merged;
-  } catch (err) {
-    console.error("Discount Admin API failed:", err?.message || err);
-    return fromEnv;
-  }
+  // Only expose codes that are explicitly whitelisted in SHOPIFY_DISCOUNT_INFO.
+  // We deliberately do NOT fetch all codes from the Admin API to prevent
+  // internal/influencer/collabs/subscriber codes from leaking to customers.
+  const fromEnv = parsePublishedCoupons(process.env.SHOPIFY_DISCOUNT_INFO)
+    .filter(isPublicCouponCode);
+  return fromEnv;
 }
 
 function findReferencedProduct(text, catalog, previousHandles) {
@@ -1153,19 +1127,44 @@ function productHasSale(product) {
   return Number(product.compare_at_price) > Number(product.price);
 }
 
+// Maximum number of coupon codes shown to customers at once
+const MAX_COUPONS_SHOWN = 3;
+
 function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) {
   const product = findReferencedProduct(text, catalog, previousHandles);
-  const published = Array.isArray(coupons) ? coupons : [];
+  // Cap the number of codes shown to avoid overwhelming replies
+  const published = (Array.isArray(coupons) ? coupons : []).slice(0, MAX_COUPONS_SHOWN);
   const hasCoupons = published.length > 0;
+
+  // If no specific product is identified, ask the user which product they mean
+  // rather than dumping all store coupons / sale items
+  if (!product) {
+    return {
+      reply: hasCoupons
+        ? `Which product are you asking about? Once you tell me the name, I can check its exact price, discount, and stock for you.`
+        : "Which product are you asking about? Tell me the name and I'll check its current price and availability for you.",
+      intent: "clarify",
+      title: "",
+      handle: "",
+      bg_color: "#c9e2e8",
+    };
+  }
 
   if (product) {
     const onSale = productHasSale(product);
+    const stockBit = product.available
+      ? `In stock${
+          product.inventory_quantity != null
+            ? ` (${product.inventory_quantity} available)`
+            : ""
+        }`
+      : "Out of stock";
     if (onSale && hasCoupons) {
       const codes = published
         .map((item) => `${item.code} (${item.detail})`)
         .join("; ");
       return {
-        reply: `Yes — ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). Published coupon code(s): ${codes}.`,
+        reply: `Yes — ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). ${stockBit}. You can also use coupon code(s): ${codes}.`,
         intent: "recommend",
         title: product.title,
         handle: product.handle,
@@ -1174,7 +1173,7 @@ function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) 
     }
     if (onSale) {
       return {
-        reply: `Yes — ${product.title} currently has a real sale price of $${product.price} (was $${product.compare_at_price}). There is no published coupon code for it right now.`,
+        reply: `Yes — ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). ${stockBit}. No additional coupon code needed.`,
         intent: "recommend",
         title: product.title,
         handle: product.handle,
@@ -1186,7 +1185,7 @@ function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) 
         .map((item) => `${item.code} (${item.detail})`)
         .join("; ");
       return {
-        reply: `${product.title} is $${product.price} with no product sale price right now. Published coupon code(s) you can try: ${codes}.`,
+        reply: `${product.title} is $${product.price} with no sale price right now. ${stockBit}. You can try coupon code(s): ${codes}.`,
         intent: "recommend",
         title: product.title,
         handle: product.handle,
@@ -1194,7 +1193,7 @@ function buildFactualDiscountReply({ text, catalog, previousHandles, coupons }) 
       };
     }
     return {
-      reply: `No — ${product.title} is currently $${product.price || "priced as listed"} with no active product discount and no published coupon code available right now.`,
+      reply: `${product.title} is currently $${product.price || "priced as listed"} with no active discount. ${stockBit}.`,
       intent: "recommend",
       title: product.title,
       handle: product.handle,
@@ -1578,22 +1577,36 @@ async function gatherStoreData({
 
   if (classification.needs_discounts) {
     facts.coupons = await loadPublishedCoupons().catch(() => []);
-    const saleItems = catalog.filter(productHasSale).slice(0, 8);
-    facts.discountFacts = [
-      facts.coupons.length
-        ? `Published coupon codes: ${facts.coupons
-            .map((item) => `${item.code} (${item.detail})`)
-            .join("; ")}`
-        : "Published coupon codes: none found via configured Shopify discount data/API.",
-      saleItems.length
-        ? `Live sale prices: ${saleItems
-            .map(
-              (item) =>
-                `${item.title} (handle: ${item.handle}) $${item.price} was $${item.compare_at_price}`
-            )
-            .join("; ")}`
-        : "Live sale prices: none in catalog.",
-    ].join("\n");
+    // Find the specific product being asked about
+    const referencedProduct = findReferencedProduct(text, catalog, previousHandles);
+    const discountLines = [];
+    if (referencedProduct) {
+      const onSale = productHasSale(referencedProduct);
+      discountLines.push(
+        onSale
+          ? `${referencedProduct.title} IS on sale: current price $${referencedProduct.price} (was $${referencedProduct.compare_at_price})`
+          : `${referencedProduct.title} is NOT on sale. Current price: $${referencedProduct.price}.`
+      );
+      discountLines.push(
+        `Stock: ${referencedProduct.available ? "In stock" : "Out of stock"}${
+          referencedProduct.inventory_quantity != null
+            ? ` (qty: ${referencedProduct.inventory_quantity})`
+            : ""
+        }`
+      );
+    } else {
+      discountLines.push("No specific product identified from this message.");
+    }
+    if (facts.coupons.length) {
+      discountLines.push(
+        `Published coupon codes: ${facts.coupons
+          .map((item) => `${item.code} (${item.detail})`)
+          .join("; ")}`
+      );
+    } else {
+      discountLines.push("Published coupon codes: none currently available.");
+    }
+    facts.discountFacts = discountLines.join("\n");
   }
 
   if (classification.needs_catalog) {
@@ -1709,8 +1722,10 @@ function buildAnswerPrompt({
   }
 
   if (storeFacts.discountFacts) {
-    lines.push("REAL DISCOUNT FACTS:");
+    // Only show discount facts for the specific product being discussed
+    lines.push("REAL DISCOUNT FACTS (for the specific product in context only):");
     lines.push(storeFacts.discountFacts);
+    lines.push("Do NOT mention other products' prices or discounts unless explicitly asked.");
     lines.push("");
   }
 
