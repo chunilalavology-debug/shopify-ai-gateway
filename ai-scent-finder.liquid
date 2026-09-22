@@ -821,23 +821,17 @@
     font-weight: 700;
   }
 
-  /*
-   * IMPORTANT:
-   * AI response text is intentionally limited to 3 lines.
-   */
   .scent-finder-app .ai-short-reply {
     display: -webkit-box;
-
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
-
     overflow: hidden;
 
-    max-height: calc(1.55em * 3);
+    max-width: 100%;
 
     margin: 0;
 
-    line-height: 1.55;
+    line-height: 1.45;
   }
 
   .scent-finder-app .limit-card {
@@ -1712,6 +1706,12 @@
 
   const MAX_DISPLAY_PRODUCTS = 4;
 
+  /*
+   * Maximum visible AI response.
+   * Product cards are rendered separately.
+   */
+  const MAX_REPLY_CHARS = 240;
+
   const MONEY_FORMAT =
     {{ shop.money_format | json }};
 
@@ -1815,9 +1815,6 @@
 
   let previousHandles = [];
 
-  /*
-   * Escape HTML before inserting API values into the page.
-   */
   function escapeHtml(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -1832,11 +1829,9 @@
   }
 
   function stripHtml(value) {
-    const box =
-      document.createElement("div");
+    const box = document.createElement("div");
 
-    box.innerHTML =
-      value || "";
+    box.innerHTML = value || "";
 
     return (
       box.textContent ||
@@ -1848,15 +1843,13 @@
   }
 
   function formatMoney(cents) {
-    const numeric =
-      Number(cents);
+    const numeric = Number(cents);
 
     if (!isFinite(numeric)) {
       return "";
     }
 
-    const amount =
-      (numeric / 100).toFixed(2);
+    const amount = (numeric / 100).toFixed(2);
 
     if (!MONEY_FORMAT) {
       return "$" + amount;
@@ -1882,12 +1875,9 @@
       return "";
     }
 
-    const value =
-      String(url).trim();
+    const value = String(url).trim();
 
-    if (
-      value.indexOf("//") === 0
-    ) {
+    if (value.indexOf("//") === 0) {
       return "https:" + value;
     }
 
@@ -1896,40 +1886,28 @@
 
   /*
    * ---------------------------------------------------------
-   * SHORT AI RESPONSE
+   * VERY SHORT AI RESPONSE
    * ---------------------------------------------------------
    *
-   * The AI can return a long reply.
-   * We intentionally display ONLY the first 3 sentences.
+   * The user should NOT see the long API response.
+   * Maximum 3 short sentences and 240 characters.
    */
   function shortenAiReply(value) {
-    let text =
-      stripHtml(value);
+    let text = stripHtml(value);
 
     if (!text) {
-      return "Here are some fragrances that match your request.";
+      return "Here are a few scents that match.";
     }
 
-    text =
-      text
-        .replace(/\r\n/g, "\n")
-        .replace(/\n+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+    text = text
+      .replace(/\r\n/g, " ")
+      .replace(/\n+/g, " ")
+      .replace(/\*\*/g, "")
+      .replace(/__/g, "")
+      .replace(/^#{1,6}\s*/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
-    /*
-     * Remove markdown formatting that can make the response
-     * look unnecessarily long.
-     */
-    text =
-      text
-        .replace(/^#{1,6}\s*/g, "")
-        .replace(/\*\*/g, "")
-        .replace(/__/g, "");
-
-    /*
-     * Keep maximum 3 sentences.
-     */
     const sentenceMatches =
       text.match(
         /[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g
@@ -1937,7 +1915,7 @@
 
     if (
       sentenceMatches &&
-      sentenceMatches.length > 3
+      sentenceMatches.length
     ) {
       text =
         sentenceMatches
@@ -1946,13 +1924,10 @@
           .trim();
     }
 
-    /*
-     * Absolute character safety limit.
-     */
-    if (text.length > 360) {
+    if (text.length > MAX_REPLY_CHARS) {
       text =
         text
-          .slice(0, 357)
+          .slice(0, MAX_REPLY_CHARS - 3)
           .replace(/\s+\S*$/, "")
           .trim() + "...";
     }
@@ -1971,14 +1946,12 @@
 
       if (
         !parsed ||
-        Date.now() >
-          Number(parsed.reset)
+        Date.now() > Number(parsed.reset)
       ) {
         return {
           count: 0,
           reset:
-            Date.now() +
-            WINDOW_MS
+            Date.now() + WINDOW_MS
         };
       }
 
@@ -1988,7 +1961,6 @@
             0,
             Number(parsed.count) || 0
           ),
-
         reset:
           Number(parsed.reset)
       };
@@ -1996,8 +1968,7 @@
       return {
         count: 0,
         reset:
-          Date.now() +
-          WINDOW_MS
+          Date.now() + WINDOW_MS
       };
     }
   }
@@ -2014,15 +1985,13 @@
   function remainingAsks() {
     return Math.max(
       0,
-      MAX_ASKS -
-        getQuota().count
+      MAX_ASKS - getQuota().count
     );
   }
 
   function countWords(value) {
     const trimmed =
-      String(value || "")
-        .trim();
+      String(value || "").trim();
 
     if (!trimmed) {
       return 0;
@@ -2031,9 +2000,7 @@
     return trimmed.split(/\s+/).length;
   }
 
-  function syncRemainingFromServer(
-    remaining
-  ) {
+  function syncRemainingFromServer(remaining) {
     if (
       typeof remaining !== "number" ||
       !isFinite(remaining)
@@ -2041,8 +2008,7 @@
       return;
     }
 
-    const quota =
-      getQuota();
+    const quota = getQuota();
 
     quota.count =
       Math.max(
@@ -2050,10 +2016,7 @@
         Math.min(
           MAX_ASKS,
           MAX_ASKS -
-            Math.max(
-              0,
-              remaining
-            )
+            Math.max(0, remaining)
         )
       );
 
@@ -2071,10 +2034,8 @@
 
       if (!id) {
         id =
-          (
-            window.crypto &&
-            crypto.randomUUID
-          )
+          window.crypto &&
+          crypto.randomUUID
             ? crypto.randomUUID()
             : "s" +
               Date.now() +
@@ -2095,8 +2056,7 @@
   }
 
   function markAskUsed() {
-    const quota =
-      getQuota();
+    const quota = getQuota();
 
     quota.count += 1;
 
@@ -2106,11 +2066,9 @@
   }
 
   function forceLimit() {
-    const quota =
-      getQuota();
+    const quota = getQuota();
 
-    quota.count =
-      MAX_ASKS;
+    quota.count = MAX_ASKS;
 
     saveQuota(quota);
 
@@ -2122,20 +2080,15 @@
   }
 
   function renderQuota() {
-    const left =
-      remainingAsks();
+    const left = remainingAsks();
 
-    limitReached =
-      left <= 0;
+    limitReached = left <= 0;
 
     if (quotaDots) {
       quotaDots.innerHTML = "";
 
       const visualDots =
-        Math.min(
-          MAX_ASKS,
-          10
-        );
+        Math.min(MAX_ASKS, 10);
 
       const usedVisual =
         visualDots -
@@ -2150,18 +2103,13 @@
         i += 1
       ) {
         const dot =
-          document.createElement(
-            "span"
-          );
+          document.createElement("span");
 
         if (i < usedVisual) {
-          dot.className =
-            "used";
+          dot.className = "used";
         }
 
-        quotaDots.appendChild(
-          dot
-        );
+        quotaDots.appendChild(dot);
       }
     }
 
@@ -2180,37 +2128,27 @@
           : "You have " +
             left +
             " free message" +
-            (left === 1
-              ? ""
-              : "s") +
+            (left === 1 ? "" : "s") +
             " left today.";
     }
   }
 
-  function setChatEnabled(
-    enabled
-  ) {
+  function setChatEnabled(enabled) {
     const allow =
       enabled &&
       !isBusy &&
       !limitReached;
 
-    chatQuery.disabled =
-      !allow;
-
-    chatSubmit.disabled =
-      !allow;
+    chatQuery.disabled = !allow;
+    chatSubmit.disabled = !allow;
 
     app
       .querySelectorAll(
         ".chat-chip[data-chat-query]"
       )
-      .forEach(
-        function (chip) {
-          chip.disabled =
-            !allow;
-        }
-      );
+      .forEach(function (chip) {
+        chip.disabled = !allow;
+      });
 
     if (limitReached) {
       chatQuery.placeholder =
@@ -2221,20 +2159,12 @@
     }
   }
 
-  function showStep(
-    stepNumber
-  ) {
+  function showStep(stepNumber) {
     app
-      .querySelectorAll(
-        ".finder-step"
-      )
-      .forEach(
-        function (step) {
-          step.classList.remove(
-            "active"
-          );
-        }
-      );
+      .querySelectorAll(".finder-step")
+      .forEach(function (step) {
+        step.classList.remove("active");
+      });
 
     const target =
       document.getElementById(
@@ -2245,45 +2175,31 @@
       );
 
     if (target) {
-      target.classList.add(
-        "active"
-      );
+      target.classList.add("active");
     }
 
-    window.setTimeout(
-      function () {
-        if (
-          stepNumber === 1
-        ) {
-          landingQuery.focus();
-        }
+    window.setTimeout(function () {
+      if (stepNumber === 1) {
+        landingQuery.focus();
+      }
 
-        if (
-          stepNumber === 2
-        ) {
-          customerEmailInput.focus();
-        }
+      if (stepNumber === 2) {
+        customerEmailInput.focus();
+      }
 
-        if (
-          stepNumber === 3 &&
-          !limitReached
-        ) {
-          chatQuery.focus();
-        }
-      },
-      350
-    );
+      if (
+        stepNumber === 3 &&
+        !limitReached
+      ) {
+        chatQuery.focus();
+      }
+    }, 350);
   }
 
-  function updateMoodBackground(
-    query,
-    hex
-  ) {
+  function updateMoodBackground(query, hex) {
     if (
       hex &&
-      /^#[0-9a-fA-F]{3,8}$/.test(
-        hex
-      )
+      /^#[0-9a-fA-F]{3,8}$/.test(hex)
     ) {
       app.style.setProperty(
         "--sf-mood-hex",
@@ -2355,13 +2271,9 @@
       chatThread.scrollHeight;
   }
 
-  function appendUserMessage(
-    text
-  ) {
+  function appendUserMessage(text) {
     const row =
-      document.createElement(
-        "div"
-      );
+      document.createElement("div");
 
     row.className =
       "chat-row user";
@@ -2371,9 +2283,7 @@
       escapeHtml(text) +
       "</div>";
 
-    chatThread.appendChild(
-      row
-    );
+    chatThread.appendChild(row);
 
     conversation.push({
       role: "user",
@@ -2383,13 +2293,9 @@
     scrollThread();
   }
 
-  function appendBotMessage(
-    text
-  ) {
+  function appendBotMessage(text) {
     const row =
-      document.createElement(
-        "div"
-      );
+      document.createElement("div");
 
     row.className =
       "chat-row bot";
@@ -2402,18 +2308,11 @@
       "<strong>AI Scent Finder</strong>" +
       "<br><br>" +
       "<div class='ai-short-reply'>" +
-      escapeHtml(
-        shortReply
-      ).replace(
-        /\n/g,
-        "<br>"
-      ) +
+      escapeHtml(shortReply) +
       "</div>" +
       "</div>";
 
-    chatThread.appendChild(
-      row
-    );
+    chatThread.appendChild(row);
 
     conversation.push({
       role: "assistant",
@@ -2425,13 +2324,9 @@
     return row;
   }
 
-  function appendLimitCard(
-    message
-  ) {
+  function appendLimitCard(message) {
     const row =
-      document.createElement(
-        "div"
-      );
+      document.createElement("div");
 
     row.className =
       "chat-row bot";
@@ -2445,25 +2340,20 @@
       ) +
       "</div>";
 
-    chatThread.appendChild(
-      row
-    );
+    chatThread.appendChild(row);
 
     scrollThread();
   }
 
   function showTyping() {
     const row =
-      document.createElement(
-        "div"
-      );
+      document.createElement("div");
 
     row.className =
       "chat-row bot";
 
     row.id =
-      "typing-" +
-      sectionId;
+      "typing-" + sectionId;
 
     row.innerHTML =
       "<div class='bot-bubble'>" +
@@ -2477,9 +2367,7 @@
       "</div>" +
       "</div>";
 
-    chatThread.appendChild(
-      row
-    );
+    chatThread.appendChild(row);
 
     scrollThread();
   }
@@ -2487,8 +2375,7 @@
   function hideTyping() {
     const typing =
       document.getElementById(
-        "typing-" +
-        sectionId
+        "typing-" + sectionId
       );
 
     if (typing) {
@@ -2498,16 +2385,11 @@
 
   /*
    * ---------------------------------------------------------
-   * PRODUCT NORMALIZATION
+   * PRODUCT HELPERS
    * ---------------------------------------------------------
-   *
-   * The API may return products in different structures.
-   * We normalize all supported structures here.
    */
 
-  function getHandleFromUrl(
-    url
-  ) {
+  function getHandleFromUrl(url) {
     if (!url) {
       return "";
     }
@@ -2524,61 +2406,47 @@
       return "";
     }
 
-    return decodeURIComponent(
-      match[1]
-    );
+    try {
+      return decodeURIComponent(
+        match[1]
+      );
+    } catch (err) {
+      return match[1];
+    }
   }
 
-  function cleanHandle(
-    handle
-  ) {
+  function cleanHandle(handle) {
     if (!handle) {
       return "";
     }
 
     let value =
-      String(handle)
-        .trim();
+      String(handle).trim();
 
     value =
       value.replace(
-       (/^.*\/products\//i),
+        /^.*\/products\//i,
         ""
       );
 
     value =
-      value.split("?")[0];
-
-    value =
-      value.split("#")[0];
-
-    value =
-      value.replace(
-        /^\/+/,
-        ""
-      );
-
-    value =
-      value.replace(
-        /\/+$/,
-        ""
-      );
+      value
+        .split("?")[0]
+        .split("#")[0]
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "");
 
     return value;
   }
 
-  function normalizeProduct(
-    item
-  ) {
+  function normalizeProduct(item) {
     if (!item) {
       return null;
     }
 
     if (typeof item === "string") {
       const handle =
-        cleanHandle(
-          item
-        );
+        cleanHandle(item);
 
       if (!handle) {
         return null;
@@ -2587,44 +2455,55 @@
       return {
         handle: handle,
         title: "",
-        url:
-          "/products/" +
-          handle
+        url: "/products/" + handle
       };
     }
 
     if (
-      typeof item !==
-      "object"
+      typeof item !== "object"
     ) {
       return null;
     }
 
+    /*
+     * Support nested Shopify product objects.
+     */
+    const nested =
+      item.product ||
+      item.product_data ||
+      item.productData ||
+      null;
+
+    const source =
+      nested &&
+      typeof nested === "object"
+        ? {
+            ...nested,
+            ...item
+          }
+        : item;
+
     const url =
-      item.url ||
-      item.product_url ||
-      item.productUrl ||
-      item.link ||
+      source.url ||
+      source.product_url ||
+      source.productUrl ||
+      source.link ||
       "";
 
     let handle =
-      item.handle ||
-      item.product_handle ||
-      item.productHandle ||
-      item.slug ||
+      source.handle ||
+      source.product_handle ||
+      source.productHandle ||
+      source.slug ||
       "";
 
     if (!handle && url) {
       handle =
-        getHandleFromUrl(
-          url
-        );
+        getHandleFromUrl(url);
     }
 
     handle =
-      cleanHandle(
-        handle
-      );
+      cleanHandle(handle);
 
     if (!handle) {
       return null;
@@ -2634,9 +2513,9 @@
       handle: handle,
 
       title:
-        item.title ||
-        item.name ||
-        item.product_title ||
+        source.title ||
+        source.name ||
+        source.product_title ||
         "",
 
       url:
@@ -2645,19 +2524,19 @@
           handle,
 
       description:
-        item.description ||
-        item.product_description ||
+        source.description ||
+        source.product_description ||
         "",
 
       price:
-        item.price ||
+        source.price ||
         "",
 
       image:
-        item.image ||
-        item.image_url ||
-        item.imageUrl ||
-        item.featured_image ||
+        source.image ||
+        source.image_url ||
+        source.imageUrl ||
+        source.featured_image ||
         ""
     };
   }
@@ -2671,26 +2550,20 @@
       return;
     }
 
-    if (
-      Array.isArray(source)
-    ) {
-      source.forEach(
-        function (item) {
-          collectProductItems(
-            item,
-            output,
-            seen
-          );
-        }
-      );
+    if (Array.isArray(source)) {
+      source.forEach(function (item) {
+        collectProductItems(
+          item,
+          output,
+          seen
+        );
+      });
 
       return;
     }
 
     const normalized =
-      normalizeProduct(
-        source
-      );
+      normalizeProduct(source);
 
     if (
       normalized &&
@@ -2705,24 +2578,18 @@
           normalized.handle
         );
 
-        output.push(
-          normalized
-        );
+        output.push(normalized);
       }
 
       return;
     }
 
     if (
-      typeof source !==
-      "object"
+      typeof source !== "object"
     ) {
       return;
     }
 
-    /*
-     * Known API structures.
-     */
     const possibleKeys = [
       "products",
       "recommendations",
@@ -2733,91 +2600,193 @@
       "items",
       "product",
       "recommendation",
+      "recommended_product",
       "data"
     ];
 
-    possibleKeys.forEach(
-      function (key) {
-        if (
-          source[key]
-        ) {
-          collectProductItems(
-            source[key],
-            output,
-            seen
-          );
-        }
+    possibleKeys.forEach(function (key) {
+      if (source[key]) {
+        collectProductItems(
+          source[key],
+          output,
+          seen
+        );
       }
-    );
+    });
   }
 
-  function extractProducts(
-    data
-  ) {
+  /*
+   * Extract product handles from any Shopify URLs
+   * included in the API response.
+   */
+  function extractHandlesFromText(text) {
+    if (!text) {
+      return [];
+    }
+
+    const matches =
+      String(text).match(
+        /(?:https?:\/\/[^/\s]+)?\/products\/([a-zA-Z0-9._~-]+)/gi
+      ) || [];
+
+    const handles = [];
+
+    matches.forEach(function (match) {
+      const handle =
+        getHandleFromUrl(match);
+
+      if (
+        handle &&
+        handles.indexOf(handle) === -1
+      ) {
+        handles.push(handle);
+      }
+    });
+
+    return handles;
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * NEW:
+   * SHOPIFY PRODUCT SEARCH
+   * ---------------------------------------------------------
+   *
+   * If the AI talks about a product but the API does not
+   * return a handle, search the actual Shopify catalog.
+   *
+   * This makes product cards work even when the AI response
+   * contains only a product name.
+   */
+  function searchShopifyProducts(query) {
+    const searchText =
+      stripHtml(query)
+        .replace(
+          /https?:\/\/\S+/gi,
+          ""
+        )
+        .trim();
+
+    if (!searchText) {
+      return Promise.resolve([]);
+    }
+
+    const url =
+      "/search/suggest.json" +
+      "?q=" +
+      encodeURIComponent(
+        searchText.slice(0, 250)
+      ) +
+      "&resources[type]=product" +
+      "&resources[limit]=" +
+      MAX_DISPLAY_PRODUCTS +
+      "&resources[options][unavailable_products]=hide";
+
+    return fetch(url, {
+      method: "GET",
+      headers: {
+        Accept:
+          "application/json"
+      },
+      credentials:
+        "same-origin"
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error(
+            "shopify_search_failed"
+          );
+        }
+
+        return response.json();
+      })
+      .then(function (data) {
+        const raw =
+          data &&
+          data.resources &&
+          data.resources.results &&
+          data.resources.results.products
+            ? data.resources.results.products
+            : [];
+
+        const products = [];
+        const seen = new Set();
+
+        raw.forEach(function (item) {
+          const normalized =
+            normalizeProduct(item);
+
+          if (
+            normalized &&
+            normalized.handle &&
+            !seen.has(
+              normalized.handle
+            )
+          ) {
+            seen.add(
+              normalized.handle
+            );
+
+            products.push(
+              normalized
+            );
+          }
+        });
+
+        return products.slice(
+          0,
+          MAX_DISPLAY_PRODUCTS
+        );
+      })
+      .catch(function () {
+        return [];
+      });
+  }
+
+  /*
+   * Extract all explicit product information returned by
+   * the AI gateway.
+   */
+  function extractProducts(data) {
     const products = [];
-    const seen =
-      new Set();
+    const seen = new Set();
+
+    if (!data) {
+      return products;
+    }
 
     /*
-     * First look through all common API structures.
+     * Search all common API response structures.
      */
-    collectProductItems(
-      data &&
-        data.products,
-      products,
-      seen
-    );
-
-    collectProductItems(
-      data &&
-        data.recommendations,
-      products,
-      seen
-    );
-
-    collectProductItems(
-      data &&
-        data.recommended_products,
-      products,
-      seen
-    );
-
-    collectProductItems(
-      data &&
-        data.matches,
-      products,
-      seen
-    );
-
-    collectProductItems(
-      data &&
-        data.results,
-      products,
-      seen
-    );
-
-    collectProductItems(
-      data &&
-        data.product,
-      products,
-      seen
-    );
+    [
+      data.products,
+      data.recommendations,
+      data.recommended_products,
+      data.recommendedProducts,
+      data.matches,
+      data.results,
+      data.items,
+      data.product,
+      data.recommendation,
+      data.recommended_product,
+      data.data
+    ].forEach(function (source) {
+      collectProductItems(
+        source,
+        products,
+        seen
+      );
+    });
 
     /*
-     * Old single-handle API format.
+     * Old single-handle response.
      */
-    if (
-      data &&
-      data.handle
-    ) {
+    if (data.handle) {
       collectProductItems(
         {
-          handle:
-            data.handle,
-          title:
-            data.title || "",
-          url:
-            data.url || ""
+          handle: data.handle,
+          title: data.title || "",
+          url: data.url || ""
         },
         products,
         seen
@@ -2825,57 +2794,27 @@
     }
 
     /*
-     * Some APIs return a single product object
-     * under recommended_product.
-     */
-    if (
-      data &&
-      data.recommended_product
-    ) {
-      collectProductItems(
-        data.recommended_product,
-        products,
-        seen
-      );
-    }
-
-    /*
-     * Last fallback:
-     * find Shopify product URLs in the AI reply.
-     *
-     * Example:
-     * /products/ocean-ember
+     * Product URLs inside reply.
      */
     const reply =
-      data &&
       typeof data.reply === "string"
         ? data.reply
         : "";
 
-    if (reply) {
-      const urlMatches =
-        reply.match(
-          /\/products\/[a-zA-Z0-9._~-]+/gi
-        );
-
-      if (urlMatches) {
-        urlMatches.forEach(
-          function (url) {
-            collectProductItems(
-              {
-                handle:
-                  getHandleFromUrl(
-                    url
-                  ),
-                url: url
-              },
-              products,
-              seen
-            );
-          }
-        );
-      }
-    }
+    extractHandlesFromText(
+      reply
+    ).forEach(function (handle) {
+      collectProductItems(
+        {
+          handle: handle,
+          url:
+            "/products/" +
+            handle
+        },
+        products,
+        seen
+      );
+    });
 
     return products.slice(
       0,
@@ -2885,23 +2824,29 @@
 
   /*
    * ---------------------------------------------------------
-   * SHOPIFY PRODUCT LOOKUP
+   * SHOPIFY PRODUCT JSON
    * ---------------------------------------------------------
    */
 
   function loadShopifyProduct(
-    handle,
-    fallbackTitle
+    productData
   ) {
+    const candidate =
+      normalizeProduct(
+        productData
+      );
+
+    if (!candidate) {
+      return Promise.resolve(null);
+    }
+
     const safeHandle =
       cleanHandle(
-        handle
+        candidate.handle
       );
 
     if (!safeHandle) {
-      return Promise.resolve(
-        null
-      );
+      return Promise.resolve(null);
     }
 
     return fetch(
@@ -2919,90 +2864,143 @@
           "same-origin"
       }
     )
-      .then(
-        function (
-          response
-        ) {
-          if (
-            !response.ok
-          ) {
-            throw new Error(
-              "product_not_found"
-            );
-          }
-
-          return response.json();
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error(
+            "product_not_found"
+          );
         }
-      )
-      .then(
-        function (
-          product
-        ) {
-          return {
-            handle:
-              safeHandle,
 
-            title:
-              product.title ||
-              fallbackTitle ||
-              "Your fragrance match",
+        return response.json();
+      })
+      .then(function (product) {
+        return {
+          handle: safeHandle,
 
-            description:
-              stripHtml(
-                product.description
-              ).slice(
-                0,
-                140
-              ),
+          title:
+            product.title ||
+            candidate.title ||
+            "Your fragrance match",
 
-            price:
-              product.price
-                ? formatMoney(
-                    product.price
+          description:
+            stripHtml(
+              product.description
+            ).slice(0, 140),
+
+          price:
+            product.price
+              ? formatMoney(
+                  product.price
+                )
+              : candidate.price
+                ? String(
+                    candidate.price
                   )
                 : "",
 
-            image:
-              product.featured_image ||
-              (
-                product.images &&
-                product.images[0]
-              ) ||
-              "",
+          image:
+            product.featured_image ||
+            (
+              product.images &&
+              product.images[0]
+            ) ||
+            candidate.image ||
+            "",
 
-            url:
-              product.url ||
-              "/products/" +
-                safeHandle
-          };
-        }
-      )
-      .catch(
-        function () {
-          /*
-           * We still render a card when the API
-           * gave us a valid handle.
-           */
-          return {
-            handle:
-              safeHandle,
-
-            title:
-              fallbackTitle ||
-              "Your fragrance match",
-
-            description: "",
-
-            price: "",
-
-            image: "",
-
-            url:
-              "/products/" +
+          url:
+            product.url ||
+            candidate.url ||
+            "/products/" +
               safeHandle
-          };
+        };
+      })
+      .catch(function () {
+        /*
+         * If product JSON fails but Shopify search/API gave
+         * us a valid handle, still render the product card.
+         */
+        return {
+          handle: safeHandle,
+
+          title:
+            candidate.title ||
+            "Your fragrance match",
+
+          description:
+            stripHtml(
+              candidate.description
+            ).slice(0, 140),
+
+          price:
+            candidate.price || "",
+
+          image:
+            candidate.image || "",
+
+          url:
+            candidate.url ||
+            "/products/" +
+              safeHandle
+        };
+      });
+  }
+
+  /*
+   * Load several products from Shopify.
+   */
+  function hydrateProducts(products) {
+    if (
+      !products ||
+      !products.length
+    ) {
+      return Promise.resolve([]);
+    }
+
+    return Promise.all(
+      products
+        .slice(
+          0,
+          MAX_DISPLAY_PRODUCTS
+        )
+        .map(function (product) {
+          return loadShopifyProduct(
+            product
+          );
+        })
+    ).then(function (loaded) {
+      const result = [];
+      const seen = new Set();
+
+      loaded.forEach(function (product) {
+        if (
+          !product ||
+          !product.handle
+        ) {
+          return;
         }
-      );
+
+        const handle =
+          cleanHandle(
+            product.handle
+          );
+
+        if (
+          !handle ||
+          seen.has(handle)
+        ) {
+          return;
+        }
+
+        seen.add(handle);
+
+        result.push({
+          ...product,
+          handle: handle
+        });
+      });
+
+      return result;
+    });
   }
 
   function productCardHtml(
@@ -3017,14 +3015,8 @@
       return "";
     }
 
-    const cardLabel =
-      label ||
-      "Recommended";
-
     const idxStyle =
-      typeof cardIndex ===
-        "number" &&
-      cardIndex > 0
+      typeof cardIndex === "number"
         ? " style='--card-index:" +
           cardIndex +
           "'"
@@ -3042,9 +3034,7 @@
             "<img " +
             "class='product-image' " +
             "src='" +
-            escapeHtml(
-              image
-            ) +
+            escapeHtml(image) +
             "' " +
             "alt='" +
             escapeHtml(
@@ -3056,8 +3046,7 @@
             "</div>"
           )
         : (
-            "<div class='product-image-wrap'>" +
-            "</div>"
+            "<div class='product-image-wrap'></div>"
           );
 
     return (
@@ -3065,75 +3054,70 @@
       idxStyle +
       ">" +
 
-        imageHtml +
+      imageHtml +
 
-        "<div class='product-info'>" +
+      "<div class='product-info'>" +
 
-          "<div class='product-label'>" +
-          escapeHtml(
-            cardLabel
-          ) +
-          "</div>" +
+      "<div class='product-label'>" +
+      escapeHtml(
+        label || "Recommended"
+      ) +
+      "</div>" +
 
-          "<h3 class='product-title'>" +
-          escapeHtml(
-            product.title ||
-              "Your fragrance match"
-          ) +
-          "</h3>" +
+      "<h3 class='product-title'>" +
+      escapeHtml(
+        product.title ||
+          "Your fragrance match"
+      ) +
+      "</h3>" +
 
-          (
-            product.description
-              ? (
-                  "<p class='product-description'>" +
-                  escapeHtml(
-                    product.description
-                  ) +
-                  "</p>"
-                )
-              : ""
-          ) +
+      (
+        product.description
+          ? (
+              "<p class='product-description'>" +
+              escapeHtml(
+                product.description
+              ) +
+              "</p>"
+            )
+          : ""
+      ) +
 
-          (
-            product.price
-              ? (
-                  "<div class='product-price'>" +
-                  escapeHtml(
-                    product.price
-                  ) +
-                  "</div>"
-                )
-              : ""
-          ) +
+      (
+        product.price
+          ? (
+              "<div class='product-price'>" +
+              escapeHtml(
+                product.price
+              ) +
+              "</div>"
+            )
+          : ""
+      ) +
 
-          (
-            product.url
-              ? (
-                  "<a " +
-                  "class='product-link' " +
-                  "href='" +
-                  escapeHtml(
-                    product.url
-                  ) +
-                  "'>" +
-                  "Discover scent →" +
-                  "</a>"
-                )
-              : ""
-          ) +
+      (
+        product.url
+          ? (
+              "<a " +
+              "class='product-link' " +
+              "href='" +
+              escapeHtml(
+                product.url
+              ) +
+              "'>" +
+              "Discover scent →" +
+              "</a>"
+            )
+          : ""
+      ) +
 
-        "</div>" +
+      "</div>" +
 
       "</article>"
     );
   }
 
-  /*
-   * Render cards independently of the AI reply.
-   */
-  function renderProductCards(
-    products
-  ) {
+  function renderProductCards(products) {
     if (
       !products ||
       !products.length
@@ -3141,61 +3125,14 @@
       return;
     }
 
-    const uniqueProducts =
-      [];
-
-    const seen =
-      new Set();
-
-    products.forEach(
-      function (product) {
-        if (
-          !product ||
-          !product.handle
-        ) {
-          return;
-        }
-
-        const handle =
-          cleanHandle(
-            product.handle
-          );
-
-        if (!handle) {
-          return;
-        }
-
-        if (
-          seen.has(
-            handle
-          )
-        ) {
-          return;
-        }
-
-        seen.add(handle);
-
-        uniqueProducts.push({
-          ...product,
-          handle: handle
-        });
-      }
-    );
-
     const limited =
-      uniqueProducts.slice(
+      products.slice(
         0,
         MAX_DISPLAY_PRODUCTS
       );
 
-    if (!limited.length) {
-      return;
-    }
-
     const row =
-      document.createElement(
-        "div"
-      );
+      document.createElement("div");
 
     row.className =
       "chat-row bot";
@@ -3210,7 +3147,7 @@
           0
         );
     } else {
-      let gridHtml =
+      let html =
         "<div class='product-grid'>";
 
       limited.forEach(
@@ -3218,7 +3155,7 @@
           product,
           index
         ) {
-          gridHtml +=
+          html +=
             productCardHtml(
               product,
               "Recommended",
@@ -3227,18 +3164,82 @@
         }
       );
 
-      gridHtml +=
+      html +=
         "</div>";
 
-      row.innerHTML =
-        gridHtml;
+      row.innerHTML = html;
     }
 
-    chatThread.appendChild(
-      row
-    );
+    chatThread.appendChild(row);
 
     scrollThread();
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT DISCOVERY FALLBACK
+   * ---------------------------------------------------------
+   *
+   * Priority:
+   *
+   * 1. API product objects
+   * 2. Product handles in API reply
+   * 3. Shopify catalog search using the AI reply
+   * 4. Shopify catalog search using the user's query
+   */
+  async function discoverProducts(
+    data,
+    originalQuery
+  ) {
+    let products =
+      extractProducts(data);
+
+    if (products.length) {
+      return hydrateProducts(
+        products
+      );
+    }
+
+    const reply =
+      data &&
+      typeof data.reply === "string"
+        ? data.reply
+        : "";
+
+    /*
+     * Search the actual Shopify catalog using the
+     * AI response first.
+     */
+    if (reply.trim()) {
+      products =
+        await searchShopifyProducts(
+          reply
+        );
+
+      if (products.length) {
+        return hydrateProducts(
+          products
+        );
+      }
+    }
+
+    /*
+     * Final fallback: search the original user query.
+     */
+    if (originalQuery) {
+      products =
+        await searchShopifyProducts(
+          originalQuery
+        );
+
+      if (products.length) {
+        return hydrateProducts(
+          products
+        );
+      }
+    }
+
+    return [];
   }
 
   /*
@@ -3247,9 +3248,7 @@
    * ---------------------------------------------------------
    */
 
-  function submitEmailToShopify(
-    email
-  ) {
+  function submitEmailToShopify(email) {
     const params =
       new URLSearchParams();
 
@@ -3301,28 +3300,20 @@
           "same-origin"
       }
     )
-      .then(
-        function (
-          response
-        ) {
-          if (
-            !response.ok
-          ) {
-            console.warn(
-              "AI Scent Finder newsletter signup HTTP",
-              response.status
-            );
-          }
-        }
-      )
-      .catch(
-        function (err) {
+      .then(function (response) {
+        if (!response.ok) {
           console.warn(
-            "AI Scent Finder newsletter signup failed",
-            err
+            "AI Scent Finder newsletter signup HTTP",
+            response.status
           );
         }
-      );
+      })
+      .catch(function (err) {
+        console.warn(
+          "AI Scent Finder newsletter signup failed",
+          err
+        );
+      });
   }
 
   /*
@@ -3340,8 +3331,7 @@
       return;
     }
 
-    selectedQuery =
-      value;
+    selectedQuery = value;
 
     updateMoodBackground(
       selectedQuery
@@ -3361,36 +3351,28 @@
       customerEmailInput.value.trim();
 
     if (
-      !isValidEmail(
-        email
-      )
+      !isValidEmail(email)
     ) {
-      emailError.hidden =
-        false;
+      emailError.hidden = false;
 
       customerEmailInput.focus();
 
       return;
     }
 
-    emailError.hidden =
-      true;
+    emailError.hidden = true;
 
-    customerEmail =
-      email;
+    customerEmail = email;
 
     submitEmailToShopify(
       customerEmail
     );
 
-    chatThread.innerHTML =
-      "";
+    chatThread.innerHTML = "";
 
-    conversation =
-      [];
+    conversation = [];
 
-    previousHandles =
-      [];
+    previousHandles = [];
 
     renderQuota();
 
@@ -3412,12 +3394,9 @@
    * ---------------------------------------------------------
    */
 
-  function askAssistant(
-    query
-  ) {
+  async function askAssistant(query) {
     const text =
-      String(query || "")
-        .trim();
+      String(query || "").trim();
 
     if (
       !text ||
@@ -3427,8 +3406,7 @@
     }
 
     if (
-      remainingAsks() <=
-      0
+      remainingAsks() <= 0
     ) {
       forceLimit();
 
@@ -3444,337 +3422,213 @@
       MAX_INPUT_WORDS
     ) {
       appendBotMessage(
-        "Please keep your message under 800 words so I can help you find a scent faster."
+        "Please keep your message under 800 words."
       );
 
       return;
     }
 
-    isBusy =
-      true;
+    isBusy = true;
 
-    setChatEnabled(
-      false
-    );
+    setChatEnabled(false);
 
-    appendUserMessage(
-      text
-    );
+    appendUserMessage(text);
 
     showTyping();
 
-    updateMoodBackground(
-      text
-    );
+    updateMoodBackground(text);
 
-    chatQuery.value =
-      "";
+    chatQuery.value = "";
 
-    fetch(
-      AI_ENDPOINT,
-      {
-        method: "POST",
+    try {
+      const response =
+        await fetch(
+          AI_ENDPOINT,
+          {
+            method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
+            headers: {
+              "Content-Type":
+                "application/json",
 
-          Accept:
-            "application/json"
-        },
+              Accept:
+                "application/json"
+            },
 
-        body:
-          JSON.stringify({
-            text: text,
+            body:
+              JSON.stringify({
+                text: text,
 
-            email:
-              customerEmail,
+                email:
+                  customerEmail,
 
-            session_id:
-              getSessionId(),
+                session_id:
+                  getSessionId(),
 
-            history:
-              conversation
-                .slice(0, -1)
-                .slice(
-                  -HISTORY_LIMIT
-                ),
+                history:
+                  conversation
+                    .slice(0, -1)
+                    .slice(
+                      -HISTORY_LIMIT
+                    ),
 
-            previous_handles:
-              previousHandles
-          })
+                previous_handles:
+                  previousHandles
+              })
+          }
+        );
+
+      let data = {};
+
+      try {
+        data =
+          await response.json();
+      } catch (err) {
+        data = {};
       }
-    )
-      .then(
-        function (
-          response
-        ) {
-          return response
-            .json()
-            .then(
-              function (
-                data
-              ) {
-                return {
-                  ok:
-                    response.ok,
 
-                  status:
-                    response.status,
+      hideTyping();
 
-                  data:
-                    data || {}
-                };
-              }
-            )
-            .catch(
-              function () {
-                return {
-                  ok: false,
+      /*
+       * SERVER RATE LIMIT
+       */
+      if (
+        response.status === 429 ||
+        data.error ===
+          "rate_limit_exceeded"
+      ) {
+        syncRemainingFromServer(0);
 
-                  status:
-                    response.status,
+        forceLimit();
 
-                  data: {}
-                };
-              }
+        appendLimitCard(
+          data.message ||
+            DAILY_LIMIT_MESSAGE
+        );
+
+        return;
+      }
+
+      /*
+       * MESSAGE TOO LONG
+       */
+      if (
+        data.error ===
+        "message_too_long"
+      ) {
+        appendBotMessage(
+          data.message ||
+            "Please keep your message under 800 words."
+        );
+
+        return;
+      }
+
+      /*
+       * GENERAL API ERROR
+       */
+      if (!response.ok) {
+        appendBotMessage(
+          data.message ||
+            "I couldn't check the collection right now. Please try again."
+        );
+
+        return;
+      }
+
+      markAskUsed();
+
+      if (
+        typeof data.remaining ===
+          "number"
+      ) {
+        syncRemainingFromServer(
+          data.remaining
+        );
+      }
+
+      updateMoodBackground(
+        text,
+        data.bg_color
+      );
+
+      /*
+       * -----------------------------------------------------
+       * SHORT RESPONSE ONLY
+       * -----------------------------------------------------
+       */
+      const reply =
+        data.reply ||
+        data.message ||
+        "Here are a few scents that match.";
+
+      appendBotMessage(reply);
+
+      /*
+       * -----------------------------------------------------
+       * PRODUCT CARDS
+       * -----------------------------------------------------
+       *
+       * IMPORTANT:
+       * We DO NOT check data.intent anymore.
+       *
+       * The system searches:
+       * API products → handles → AI reply → Shopify catalog.
+       */
+      const products =
+        await discoverProducts(
+          data,
+          text
+        );
+
+      /*
+       * Save handles for future recommendations.
+       */
+      products.forEach(
+        function (product) {
+          const handle =
+            cleanHandle(
+              product.handle
             );
-        }
-      )
-      .then(
-        function (
-          result
-        ) {
-          hideTyping();
 
-          const data =
-            result.data || {};
-
-          /*
-           * SERVER RATE LIMIT
-           */
           if (
-            result.status ===
-              429 ||
-            data.error ===
-              "rate_limit_exceeded"
+            handle &&
+            previousHandles.indexOf(
+              handle
+            ) === -1
           ) {
-            syncRemainingFromServer(
-              0
-            );
-
-            forceLimit();
-
-            appendLimitCard(
-              data.message ||
-                DAILY_LIMIT_MESSAGE
-            );
-
-            return;
-          }
-
-          /*
-           * MESSAGE TOO LONG
-           */
-          if (
-            data.error ===
-            "message_too_long"
-          ) {
-            appendBotMessage(
-              data.message ||
-                "Please keep your message under 800 words so I can help you find a scent faster."
-            );
-
-            return;
-          }
-
-          /*
-           * GENERAL API ERROR
-           */
-          if (
-            !result.ok
-          ) {
-            appendBotMessage(
-              data.message ||
-                "I had trouble checking the collection just now. Please ask me again in a moment."
-            );
-
-            return;
-          }
-
-          /*
-           * Successful API call.
-           */
-          markAskUsed();
-
-          if (
-            typeof data.remaining ===
-              "number"
-          ) {
-            syncRemainingFromServer(
-              data.remaining
-            );
-          }
-
-          /*
-           * -------------------------------------------------
-           * PRODUCT EXTRACTION
-           * -------------------------------------------------
-           *
-           * IMPORTANT:
-           * This now happens BEFORE checking intent.
-           *
-           * Therefore the frontend no longer requires:
-           *
-           * data.intent === "recommend"
-           *
-           * to display product cards.
-           */
-          const products =
-            extractProducts(
-              data
-            );
-
-          /*
-           * Save handles for future AI context.
-           */
-          products.forEach(
-            function (
-              product
-            ) {
-              const handle =
-                cleanHandle(
-                  product.handle
-                );
-
-              if (
-                handle &&
-                previousHandles.indexOf(
-                  handle
-                ) === -1
-              ) {
-                previousHandles.push(
-                  handle
-                );
-              }
-            }
-          );
-
-          /*
-           * Also support old single-handle response.
-           */
-          if (
-            data.handle
-          ) {
-            const oldHandle =
-              cleanHandle(
-                data.handle
-              );
-
-            if (
-              oldHandle &&
-              previousHandles.indexOf(
-                oldHandle
-              ) === -1
-            ) {
-              previousHandles.push(
-                oldHandle
-              );
-            }
-          }
-
-          /*
-           * Update background.
-           */
-          updateMoodBackground(
-            text,
-            data.bg_color
-          );
-
-          /*
-           * -------------------------------------------------
-           * SHORT AI TEXT
-           * -------------------------------------------------
-           *
-           * Only maximum 3 sentences are displayed.
-           */
-          const reply =
-            data.reply ||
-            data.message ||
-            "Here are some fragrances that match your request.";
-
-          appendBotMessage(
-            reply
-          );
-
-          /*
-           * -------------------------------------------------
-           * PRODUCT CARDS
-           * -------------------------------------------------
-           *
-           * Product cards are rendered separately from
-           * the AI response.
-           */
-          if (
-            products.length
-          ) {
-            renderProductCards(
-              products
-            );
-          } else if (
-            data.handle
-          ) {
-            /*
-             * Final fallback for old API.
-             */
-            loadShopifyProduct(
-              data.handle,
-              data.title
-            ).then(
-              function (
-                product
-              ) {
-                if (
-                  product &&
-                  product.handle
-                ) {
-                  renderProductCards(
-                    [
-                      product
-                    ]
-                  );
-                }
-              }
+            previousHandles.push(
+              handle
             );
           }
-        }
-      )
-      .catch(
-        function (error) {
-          console.error(
-            "AI Scent Finder API error:",
-            error
-          );
-
-          hideTyping();
-
-          appendBotMessage(
-            "I could not reach the fragrance concierge just now. Please try again in a moment."
-          );
-        }
-      )
-      .finally(
-        function () {
-          isBusy =
-            false;
-
-          renderQuota();
-
-          setChatEnabled(
-            true
-          );
         }
       );
+
+      if (
+        products.length
+      ) {
+        renderProductCards(
+          products
+        );
+      }
+    } catch (error) {
+      console.error(
+        "AI Scent Finder API error:",
+        error
+      );
+
+      hideTyping();
+
+      appendBotMessage(
+        "I couldn't reach the fragrance concierge. Please try again."
+      );
+    } finally {
+      isBusy = false;
+
+      renderQuota();
+
+      setChatEnabled(true);
+    }
   }
 
   /*
@@ -3792,8 +3646,7 @@
     "keydown",
     function (event) {
       if (
-        event.key ===
-        "Enter"
+        event.key === "Enter"
       ) {
         event.preventDefault();
 
@@ -3806,35 +3659,32 @@
     .querySelectorAll(
       ".landing-option"
     )
-    .forEach(
-      function (button) {
-        button.addEventListener(
-          "click",
-          function () {
-            const query =
-              this.getAttribute(
-                "data-query"
-              );
-
-            if (!query) {
-              return;
-            }
-
-            selectedQuery =
-              query;
-
-            landingQuery.value =
-              query;
-
-            updateMoodBackground(
-              selectedQuery
+    .forEach(function (button) {
+      button.addEventListener(
+        "click",
+        function () {
+          const query =
+            this.getAttribute(
+              "data-query"
             );
 
-            showStep(2);
+          if (!query) {
+            return;
           }
-        );
-      }
-    );
+
+          selectedQuery = query;
+
+          landingQuery.value =
+            query;
+
+          updateMoodBackground(
+            selectedQuery
+          );
+
+          showStep(2);
+        }
+      );
+    });
 
   emailSubmit.addEventListener(
     "click",
@@ -3844,8 +3694,7 @@
   customerEmailInput.addEventListener(
     "input",
     function () {
-      emailError.hidden =
-        true;
+      emailError.hidden = true;
     }
   );
 
@@ -3853,8 +3702,7 @@
     "keydown",
     function (event) {
       if (
-        event.key ===
-        "Enter"
+        event.key === "Enter"
       ) {
         event.preventDefault();
 
@@ -3878,8 +3726,7 @@
     "keydown",
     function (event) {
       if (
-        event.key ===
-        "Enter"
+        event.key === "Enter"
       ) {
         event.preventDefault();
 
@@ -3892,25 +3739,21 @@
     .querySelectorAll(
       ".chat-chip[data-chat-query]"
     )
-    .forEach(
-      function (button) {
-        button.addEventListener(
-          "click",
-          function () {
-            const query =
-              this.getAttribute(
-                "data-chat-query"
-              );
+    .forEach(function (button) {
+      button.addEventListener(
+        "click",
+        function () {
+          const query =
+            this.getAttribute(
+              "data-chat-query"
+            );
 
-            if (query) {
-              askAssistant(
-                query
-              );
-            }
+          if (query) {
+            askAssistant(query);
           }
-        );
-      }
-    );
+        }
+      );
+    });
 
   /*
    * ---------------------------------------------------------
@@ -3921,39 +3764,27 @@
   restartButton.addEventListener(
     "click",
     function () {
-      selectedQuery =
-        "";
+      selectedQuery = "";
 
-      customerEmail =
-        "";
+      customerEmail = "";
 
-      isBusy =
-        false;
+      isBusy = false;
 
-      conversation =
-        [];
+      conversation = [];
 
-      previousHandles =
-        [];
+      previousHandles = [];
 
-      landingQuery.value =
-        "";
+      landingQuery.value = "";
 
-      customerEmailInput.value =
-        "";
+      customerEmailInput.value = "";
 
-      chatQuery.value =
-        "";
+      chatQuery.value = "";
 
-      chatThread.innerHTML =
-        "";
+      chatThread.innerHTML = "";
 
-      emailError.hidden =
-        true;
+      emailError.hidden = true;
 
-      app.removeAttribute(
-        "style"
-      );
+      app.removeAttribute("style");
 
       app.setAttribute(
         "data-mood",
@@ -3962,9 +3793,7 @@
 
       renderQuota();
 
-      setChatEnabled(
-        true
-      );
+      setChatEnabled(true);
 
       showStep(1);
     }
@@ -3978,9 +3807,7 @@
 
   renderQuota();
 
-  setChatEnabled(
-    true
-  );
+  setChatEnabled(true);
 
   showStep(1);
 
