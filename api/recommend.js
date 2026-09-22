@@ -2127,10 +2127,11 @@ module.exports = async (req, res) => {
     rawPayload.reply = sanitizeReply(rawPayload.reply);
 
     // ── Fallback: extract products from reply text ──────────────────────────
-    // If the AI wrote product names in the reply text but forgot the products
-    // JSON array, scan the reply and auto-populate products from catalog.
+    // Run this whenever the catalog was fetched and the AI didn't return a
+    // products array — regardless of what intent the AI claimed.
+    // The AI often says intent:"chat" even when recommending multiple products.
     if (
-      rawPayload.intent === "recommend" &&
+      classification.needs_catalog &&
       !rawPayload.products?.length &&
       rawPayload.reply &&
       bindPool.length
