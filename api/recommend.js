@@ -49,6 +49,11 @@ let collectionsCache = {
   expiresAt: 0,
 };
 
+let originalHandleCache = {
+  handles: null,
+  expiresAt: 0,
+};
+
 let shopifyTokenCache = {
   token: null,
   expiresAt: 0,
@@ -889,6 +894,8 @@ function mapAdminProduct(node) {
       node?.variants?.nodes ||
       []
     ).map((entry) => ({
+      id: numericVariantId(entry.id),
+
       title: String(
         entry.title ||
         "Default"
@@ -1048,6 +1055,8 @@ function mapAdminProduct(node) {
 
     inventory_quantity:
       variant?.inventory_quantity,
+
+    variant_id: numericVariantId(variant?.id),
 
     url: handle
       ? `https://${SHOP_DOMAIN}/products/${handle}`
@@ -1235,6 +1244,11 @@ async function loadCatalogFromAdmin() {
   }
 }
 
+function numericVariantId(value) {
+  const match = String(value || "").match(/(\d+)\s*$/);
+  return match ? match[1] : "";
+}
+
 function pickVariant(
   variants
 ) {
@@ -1391,6 +1405,8 @@ function mapProduct(
     inventory_quantity:
       null,
 
+    variant_id: numericVariantId(variant?.id),
+
     url: handle
       ? `https://${SHOP_DOMAIN}/products/${handle}`
       : "",
@@ -1423,6 +1439,8 @@ function mapProduct(
                   entry.compare_at_price
                 )
                 : "",
+
+            id: numericVariantId(entry.id),
 
             available:
               Boolean(
@@ -1531,6 +1549,83 @@ async function loadCollectionTitles() {
   };
 
   return titles;
+}
+
+async function loadOriginalHandles() {
+  const now = Date.now();
+
+  if (
+    originalHandleCache.handles &&
+    now < originalHandleCache.expiresAt
+  ) {
+    return originalHandleCache.handles;
+  }
+
+  const handles = new Set();
+
+  try {
+    for (let page = 1; page <= 4; page += 1) {
+      const response = await fetch(
+        `https://${SHOP_DOMAIN}/collections/cn1-original-fragrances/products.json?limit=250&page=${page}`,
+        {
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        break;
+      }
+
+      const data = await response.json();
+      const products = data?.products || [];
+
+      products.forEach((item) => {
+        const handle = String(item?.handle || "")
+          .trim()
+          .toLowerCase();
+
+        if (handle) {
+          handles.add(handle);
+        }
+      });
+
+      if (products.length < 250) {
+        break;
+      }
+    }
+  } catch {
+    // Keep an empty set for this window so a failed lookup does not block answers.
+  }
+
+  originalHandleCache = {
+    handles,
+    expiresAt: now + CATALOG_CACHE_TTL_MS,
+  };
+
+  return handles;
+}
+
+function isCn1OriginalProduct(item, inspired) {
+  const handle = String(item?.handle || "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    originalHandleCache.handles &&
+    originalHandleCache.handles.has(handle)
+  ) {
+    return true;
+  }
+
+  if (/cn1\s*originals?/i.test(inspired || "")) {
+    return true;
+  }
+
+  return (item?.collections || []).some((title) =>
+    /cn1\s*original/i.test(String(title || ""))
+  );
 }
 
 async function loadPublicCatalog() {
@@ -1662,6 +1757,8 @@ function startCatalogRefresh() {
 }
 
 async function loadFullCatalog() {
+  await loadOriginalHandles().catch(() => new Set());
+
   const now =
     Date.now();
 
@@ -3082,7 +3179,32 @@ function searchByIngredients(catalog, terms) {
     .map((row) => row.product);
 }
 
-function cardFields(item) {
+function inspiredByName(text) {
+  const plain = String(text || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
+  const match = plain.match(/inspired by\s+([^.]{2,90})/i);
+
+  if (!match) {
+    return "";
+  }
+
+  const name = match[1]
+    .split(/[,;]/)[0]
+    .replace(/'s\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!name) {
+    return "";
+  }
+
+  return name
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
+function cardFields(item, extra) {
   const price = String(item?.price || "").trim();
   const handle = String(item?.handle || "").trim();
 
@@ -3096,6 +3218,11 @@ function cardFields(item) {
         : ""),
     image: item?.image || "",
     type: String(item?.type || "").trim(),
+    variant_id: numericVariantId(
+      item?.variant_id ||
+        (item?.variants || []).find((entry) => entry?.available)?.id ||
+        item?.variants?.[0]?.id
+    ),
     price:
       price && !price.startsWith("$")
         ? `$${price}`
@@ -3113,8 +3240,85 @@ function cardFields(item) {
     })(),
     description: String(
       item?.summary || item?.notes || ""
-    ).slice(0, 140),
+    ).slice(0, 220),
+    inspired_by: (() => {
+      const inspired = inspiredByName(
+        item?.description || item?.summary || ""
+      );
+
+      return isCn1OriginalProduct(item, inspired)
+        ? "CN1 Original"
+        : inspired;
+    })(),
+    cn1_original: isCn1OriginalProduct(
+      item,
+      inspiredByName(item?.description || item?.summary || "")
+    ),
+    ...(extra && typeof extra === "object" ? extra : {}),
   };
+}
+
+const SCENT_TERMS = new Set([
+  ...Object.keys(NOTE_FAMILIES),
+  "clean",
+  "warm",
+  "green",
+  "powdery",
+  "leather",
+  "rose",
+  "jasmine",
+  "cedarwood",
+  "vetiver",
+  "aquatic",
+]);
+
+function queryScentTerms(text) {
+  return contentTerms(text).filter((term) => SCENT_TERMS.has(term));
+}
+
+function productScentHits(product, term) {
+  const hits = noteHits(product, term);
+
+  if (hits.length) {
+    return hits;
+  }
+
+  return termInText(
+    `${product?.title || ""} ${product?.type || ""}`,
+    term
+  )
+    ? [term]
+    : [];
+}
+
+function scentMatches(catalog, terms) {
+  return [...(catalog || [])]
+    .map((product) => {
+      const hits = [];
+
+      terms.forEach((term) => {
+        productScentHits(product, term).forEach((word) => {
+          if (!hits.includes(word)) {
+            hits.push(word);
+          }
+        });
+      });
+
+      return { product, hits };
+    })
+    .filter((row) => row.hits.length > 0)
+    .sort((a, b) => b.hits.length - a.hits.length);
+}
+
+function matchCard(item, hits) {
+  const words = (hits || []).slice(0, 3);
+
+  return cardFields(item, {
+    match_percent: words.length
+      ? Math.min(96, 74 + words.length * 7)
+      : 0,
+    match_terms: words,
+  });
 }
 
 function rankLoose(catalog, text) {
@@ -3136,65 +3340,69 @@ function rankLoose(catalog, text) {
 
 function buildFastRecommendReply(text, catalog) {
   const budgeted = filterByBudget(catalog || [], text);
-  const source = budgeted.length ? budgeted : catalog || [];
-  let matches = rankLoose(source, text);
-  const focused = findReferencedProduct(text, source, []);
+  const budgetAsked = budgeted.length !== (catalog || []).length;
+  const source = budgeted.length ? budgeted : [];
+  const scentTerms = queryScentTerms(text);
+  const empty = {
+    reply: "I couldn't find a matching fragrance in the current collection.",
+    intent: "chat",
+    title: "",
+    handle: "",
+    products: [],
+    exact_match: true,
+    bg_color: "#c9e2e8",
+  };
 
-  if (
-    focused &&
-    !matches.some((item) => item.handle === focused.handle)
-  ) {
-    matches = [focused, ...matches];
-  }
-
-  const matched = matches.length > 0;
-
-  if (!matches.length) {
-    const fragrances = source.filter((item) => {
-      const hay = `${item.type || ""} ${item.title || ""}`.toLowerCase();
-
-      if (item.available === false) {
-        return false;
-      }
-
-      if (/\b(candle|soap|diffuser|accessor(?:y|ies))\b/.test(hay)) {
-        return false;
-      }
-
-      return /\b(perfume|fragrance|cologne|parfum|scent|splash|mist)\b/.test(
-        hay
-      );
-    });
-
-    matches = (
-      fragrances.length
-        ? fragrances
-        : source.filter((item) => item.available !== false)
+  if (scentTerms.length) {
+    const ranked = scentMatches(
+      budgetAsked ? source : catalog || [],
+      scentTerms
     ).slice(0, 4);
-  } else {
-    matches = matches.slice(0, 4);
+
+    if (!ranked.length) {
+      return empty;
+    }
+
+    const names = ranked.map((row) => row.product.title).filter(Boolean);
+    const reply =
+      ranked.length === 1
+        ? `${names[0]} lists ${ranked[0].hits.slice(0, 3).join(", ")}.`
+        : "These match what you asked for.";
+
+    return {
+      reply,
+      intent: "recommend",
+      title: ranked.length === 1 ? ranked[0].product.title : "",
+      handle: ranked.length === 1 ? ranked[0].product.handle : "",
+      products: ranked.map((row) => matchCard(row.product, row.hits)),
+      exact_match: true,
+      bg_color: "#c9e2e8",
+    };
   }
 
-  const names = matches
-    .map((item) => item.title)
-    .filter(Boolean);
-
-  let reply = "I couldn't find a matching fragrance in the current collection.";
-
-  if (names.length === 1 && matched) {
-    reply = `${names[0]} is the closest match.`;
-  } else if (names.length && matched) {
-    reply = "These match what you asked for.";
-  } else if (names.length) {
-    reply = "Here are a few fragrances to start with.";
+  if (!budgetAsked) {
+    return empty;
   }
+
+  const priced = source
+    .filter((item) => item.available !== false)
+    .slice(0, 4);
+
+  if (!priced.length) {
+    return empty;
+  }
+
+  const names = priced.map((item) => item.title).filter(Boolean);
 
   return {
-    reply,
-    intent: names.length ? "recommend" : "chat",
-    title: names.length === 1 ? matches[0].title : "",
-    handle: names.length === 1 ? matches[0].handle : "",
-    products: matches.map(cardFields),
+    reply:
+      names.length === 1
+        ? `${names[0]} is within that budget.`
+        : "These are within that budget.",
+    intent: "recommend",
+    title: names.length === 1 ? priced[0].title : "",
+    handle: names.length === 1 ? priced[0].handle : "",
+    products: priced.map(cardFields),
     exact_match: true,
     bg_color: "#c9e2e8",
   };
@@ -3262,7 +3470,19 @@ function buildFactualIngredientReply(terms, matches) {
     intent: "recommend",
     title: shown.length === 1 ? shown[0].title : "",
     handle: shown.length === 1 ? shown[0].handle : "",
-    products: shown.map(cardFields),
+    products: shown.map((item) => {
+      const hits = [];
+
+      (terms || []).forEach((term) => {
+        noteHits(item, term).forEach((word) => {
+          if (!hits.includes(word)) {
+            hits.push(word);
+          }
+        });
+      });
+
+      return matchCard(item, hits.length ? hits : terms);
+    }),
     exact_match: true,
     bg_color: "#c9e2e8",
   };
@@ -5518,6 +5738,7 @@ module.exports._test = {
   bindToCatalog,
   formatCatalog,
   mapProduct,
+  inspiredByName,
   isDiscountQuestion,
   parsePublishedCoupons,
   findReferencedProduct,
