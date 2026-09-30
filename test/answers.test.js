@@ -148,6 +148,39 @@ async function run() {
   );
   assert.strictEqual(topSellerReply.products[0].handle, "vanilla-harmony");
 
+  const titleOnlyWoods = fixture({
+    title: "Regal Woods",
+    handle: "regal-woods",
+    description: "Opens with bergamot and juniper berry.",
+  });
+  const realWoody = fixture({
+    title: "Regal Woods",
+    handle: "regal-woods",
+    tags: "Woody",
+    description: "Warm cardamom and cedarwood, with vetiver and amber.",
+  });
+  assert.strictEqual(
+    t.searchByIngredients(
+      [titleOnlyWoods],
+      ["woody"]
+    ).length,
+    0,
+    "a title that says Woods is not a woody note"
+  );
+  assert.strictEqual(
+    t.searchByIngredients(
+      [realWoody],
+      ["woody"]
+    )[0].handle,
+    "regal-woods"
+  );
+  assert.deepStrictEqual(
+    t.extractIngredientQuery(
+      "I want something like woody notes in it"
+    ),
+    ["woody"]
+  );
+
   const ingredientTerms = t.extractIngredientQuery(genericQuery);
   assert.deepStrictEqual(ingredientTerms, ["sandalwood"]);
   const fixtureReply = t.buildFactualIngredientReply(

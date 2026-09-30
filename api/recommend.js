@@ -2808,10 +2808,6 @@ function contentTerms(text) {
 function termVariants(term) {
   const variants = [term];
 
-  if (term.endsWith("y") && term.length > 4) {
-    variants.push(term.slice(0, -1));
-  }
-
   if (term.endsWith("s") && term.length > 4) {
     variants.push(term.slice(0, -1));
   }
@@ -3002,7 +2998,7 @@ function extractIngredientQuery(text) {
   }
 
   const explicit =
-    /\b(ingredients?|contains|containing|made with|notes of|note of|having)\b/i.test(
+    /\b(ingredients?|contains|containing|made with|notes?|accords?|having)\b/i.test(
       value
     ) || /\bwith\b/i.test(value);
 
@@ -3017,6 +3013,55 @@ function extractIngredientQuery(text) {
   return terms;
 }
 
+const NOTE_FAMILIES = {
+  woody: ["woody", "woodsy", "cedarwood", "sandalwood", "oud", "agarwood", "vetiver", "patchouli", "guaiac", "oakmoss"],
+  floral: ["floral", "rose", "jasmine", "ylang", "tuberose", "peony", "iris"],
+  citrus: ["citrus", "bergamot", "lemon", "orange", "grapefruit", "mandarin", "lime", "neroli"],
+  fresh: ["fresh", "aquatic", "marine", "mint"],
+  sweet: ["sweet", "vanilla", "caramel", "honey", "tonka"],
+  spicy: ["spicy", "spice", "cardamom", "cinnamon", "pepper", "clove", "saffron"],
+  amber: ["amber", "ambery"],
+  musk: ["musk", "musky"],
+  vanilla: ["vanilla"],
+  oud: ["oud", "agarwood"],
+  sandalwood: ["sandalwood"],
+};
+
+function noteEvidence(product) {
+  return [
+    product?.notes,
+    product?.ingredients,
+    product?.tags,
+    product?.description,
+    product?.summary,
+    Object.values(product?.metafields || {}).join(" "),
+  ].join(" ");
+}
+
+function termInText(text, term) {
+  const escaped = String(term || "").replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+
+  if (!escaped) {
+    return false;
+  }
+
+  return new RegExp("\\b" + escaped + "\\b", "i").test(
+    String(text || "")
+  );
+}
+
+function noteHits(product, term) {
+  const evidence = noteEvidence(product);
+  const family = NOTE_FAMILIES[String(term || "").toLowerCase()] || [
+    term,
+  ];
+
+  return family.filter((word) => termInText(evidence, word));
+}
+
 function searchByIngredients(catalog, terms) {
   const required = (terms || []).filter(Boolean);
 
@@ -3026,7 +3071,7 @@ function searchByIngredients(catalog, terms) {
 
   return [...(catalog || [])]
     .filter((product) =>
-      required.every((term) => productMatchesTerm(product, term))
+      required.every((term) => noteHits(product, term).length > 0)
     )
     .map((product) => ({
       product,
@@ -3199,10 +3244,18 @@ function buildFactualIngredientReply(terms, matches) {
   }
 
   const names = shown.map((item) => item.title);
+  const evidence = [
+    ...new Set(
+      shown.flatMap((item) =>
+        (terms || []).flatMap((term) => noteHits(item, term))
+      )
+    ),
+  ].slice(0, 3);
+  const found = evidence.length ? evidence.join(", ") : label;
   const reply =
     shown.length === 1
-      ? `${names[0]} lists ${label}.`
-      : `These list ${label}.`;
+      ? `${names[0]} lists ${found}.`
+      : `These list ${found}.`;
 
   return {
     reply,
