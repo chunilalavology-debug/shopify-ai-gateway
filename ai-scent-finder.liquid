@@ -642,7 +642,7 @@
     display: grid;
 
     grid-template-columns:
-      minmax(150px, 220px)
+      minmax(300px, 380px)
       minmax(0, 1fr);
 
     gap: 16px;
@@ -662,14 +662,14 @@
   }
 
   .scent-finder-app .chat-title {
-    max-width: 200px;
+    max-width: none;
 
-    font-size: clamp(20px, 2vw, 28px);
+    font-size: clamp(22px, 2.2vw, 32px);
     line-height: 1.15;
   }
 
   .scent-finder-app .chat-description {
-    max-width: 200px;
+    max-width: none;
 
     margin-bottom: 0;
 
@@ -794,77 +794,45 @@
     word-break: break-word;
   }
 
-  .scent-finder-app .product-card {
-    width: 100%;
-
-    display: grid;
-
-    grid-template-columns: 124px 1fr;
-
-    gap: 16px;
-
-    padding: 14px;
-
-    border-radius: 14px;
-
-    background: #fff;
-
-    border: 1px solid var(--sf-line);
-
-    animation:
-      scentFinderProductFadeIn
-      0.5s
-      ease
-      both;
-  }
-
   .scent-finder-app .product-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(132px, 1fr));
-    grid-auto-flow: column;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
 
-    gap: 10px;
+    gap: 12px;
 
     width: 100%;
 
     overflow-x: auto;
   }
 
-  .scent-finder-app .product-grid .product-card {
+  .scent-finder-app .product-card {
+    flex: 0 0 220px;
+
+    width: 220px;
+    max-width: 220px;
+
     display: flex;
     flex-direction: column;
 
-    min-width: 0;
-
-    gap: 8px;
-
     padding: 10px;
-  }
 
-  .scent-finder-app .product-grid .product-image-wrap {
-    width: 100%;
-    height: 112px;
-  }
+    border-radius: 18px;
 
-  .scent-finder-app .product-grid .product-title {
-    margin-bottom: 4px;
+    background: #fff;
 
-    font-size: 13px;
-  }
+    border: 1px solid #efe8e2;
 
-  .scent-finder-app .product-grid .product-description {
-    display: none;
-  }
+    box-shadow:
+      0 10px 28px rgba(40, 28, 20, 0.06);
 
-  .scent-finder-app .product-grid .product-price {
-    margin-bottom: 8px;
-  }
+    animation:
+      scentFinderProductFadeIn
+      0.5s
+      ease
+      both;
 
-  .scent-finder-app .product-grid .product-link {
-    width: 100%;
-  }
-
-  .scent-finder-app .product-grid .product-card {
     animation-delay:
       calc(var(--card-index, 0) * 0.09s);
   }
@@ -882,19 +850,39 @@
   }
 
   .scent-finder-app .product-image-wrap {
-    width: 124px;
-    height: 124px;
+    position: relative;
+
+    width: 100%;
+    aspect-ratio: 1;
+    height: auto;
 
     overflow: hidden;
 
-    border-radius: 16px;
+    border-radius: 14px;
 
-    background:
-      linear-gradient(
-        180deg,
-        #f6efe6,
-        #eadfd3
-      );
+    background: #f7f4f1;
+  }
+
+  .scent-finder-app .product-badge {
+    position: absolute;
+    z-index: 1;
+
+    padding: 5px 8px;
+
+    border-radius: 8px;
+
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+  }
+
+  .scent-finder-app .product-badge.sale {
+    top: 8px;
+    left: 8px;
+
+    background: #111;
+    color: #fff;
   }
 
   .scent-finder-app .product-image {
@@ -903,83 +891,89 @@
 
     display: block;
 
-    object-fit: cover;
+    object-fit: contain;
+    object-position: center;
 
-    transition:
-      transform 0.45s ease;
+    background: #f7f4f1;
   }
 
   .scent-finder-app .product-card:hover .product-image {
-    transform: scale(1.05);
+    transform: none;
   }
 
   .scent-finder-app .product-info {
     display: flex;
     flex-direction: column;
-    justify-content: center;
 
     min-width: 0;
+
+    padding: 12px 4px 2px;
   }
 
-  .scent-finder-app .product-head {
+  .scent-finder-app .product-meta {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
 
     gap: 8px;
-
-    margin-bottom: 5px;
-  }
-
-  .scent-finder-app .product-label {
-    margin-bottom: 0;
-
-    color: var(--sf-coral);
-
-    font-size: 10px;
-    font-weight: 600;
-
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
   }
 
   .scent-finder-app .product-gender {
-    margin-left: auto;
-    margin-bottom: 0;
+    position: absolute;
+    top: 8px;
+    right: 8px;
 
-    color: var(--sf-muted);
+    margin: 0;
 
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 1.2;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    padding: 6px 8px;
+
+    border-radius: 8px;
+
+    background: #e85a9b;
+    color: #fff;
+
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
 
     white-space: nowrap;
   }
 
   .scent-finder-app .product-title {
-    margin: 0 0 8px;
+    margin: 0;
 
-    font-size: 17px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.25;
   }
 
-  .scent-finder-app .product-description {
-    margin: 0 0 10px;
+  .scent-finder-app .product-price-col {
+    flex: 0 0 auto;
 
-    color: var(--sf-muted);
-
-    font-size: 12px;
-    line-height: 1.5;
+    text-align: right;
   }
 
   .scent-finder-app .product-price {
-    margin-bottom: 12px;
+    margin: 0;
 
-    font-size: 13px;
-    font-weight: 600;
+    color: #e10600;
+
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .scent-finder-app .product-compare {
+    margin-top: 2px;
+
+    color: #9a9a9a;
+
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-decoration: line-through;
   }
 
   .scent-finder-app .product-link {
@@ -987,9 +981,11 @@
     align-items: center;
     justify-content: center;
 
-    width: fit-content;
+    width: 100%;
 
-    padding: 9px 16px;
+    margin-top: 12px;
+
+    padding: 10px 16px;
 
     border: 0;
     border-radius: 999px;
@@ -1277,26 +1273,11 @@
       padding: 12px 12px 70px;
     }
 
-    .scent-finder-app .chat-row.bot > .product-card {
-      grid-template-columns: 92px 1fr;
+    .scent-finder-app .product-card {
+      flex-basis: 180px;
 
-      gap: 12px;
-
-      padding: 10px;
-    }
-
-    .scent-finder-app .chat-row.bot > .product-card .product-image-wrap {
-      width: 92px;
-      height: 112px;
-    }
-
-    .scent-finder-app .product-grid {
-      grid-template-columns: repeat(4, minmax(132px, 1fr));
-    }
-
-    .scent-finder-app .product-grid .product-image-wrap {
-      width: 100%;
-      height: 96px;
+      width: 180px;
+      max-width: 180px;
     }
 
     .scent-finder-app .ask-button {
@@ -2593,6 +2574,11 @@
         source.price ||
         "",
 
+      compare_at_price:
+        source.compare_at_price ||
+        source.compareAtPrice ||
+        "",
+
       image:
         source.image ||
         source.image_url ||
@@ -2623,17 +2609,25 @@
       value.indexOf("women") !== -1 ||
       value.indexOf("woman") !== -1
     ) {
-      return "For women";
+      return "Women";
     }
 
     if (
       value.indexOf("men") !== -1 ||
       value.indexOf("man") !== -1
     ) {
-      return "For men";
+      return "Men";
     }
 
     return "";
+  }
+
+  function moneyNumber(value) {
+    const amount = Number(
+      String(value || "").replace(/[^0-9.]/g, "")
+    );
+
+    return Number.isFinite(amount) ? amount : 0;
   }
 
   function collectProductItems(
@@ -3101,6 +3095,13 @@
                   )
                 : "",
 
+          compare_at_price:
+            product.compare_at_price
+              ? formatMoney(
+                  product.compare_at_price
+                )
+              : candidate.compare_at_price || "",
+
           image:
             product.featured_image ||
             (
@@ -3242,27 +3243,54 @@
         product.image
       );
 
+    const gender =
+      genderLabel(product.type);
+
+    const priceAmount =
+      moneyNumber(product.price);
+
+    const compareAmount =
+      moneyNumber(product.compare_at_price);
+
+    const onSale =
+      compareAmount > priceAmount &&
+      priceAmount > 0;
+
     const imageHtml =
-      image
-        ? (
-            "<div class='product-image-wrap'>" +
-            "<img " +
-            "class='product-image' " +
-            "src='" +
-            escapeHtml(image) +
-            "' " +
-            "alt='" +
-            escapeHtml(
-              product.title ||
-                "Fragrance"
-            ) +
-            "' " +
-            "loading='lazy'>" +
-            "</div>"
-          )
-        : (
-            "<div class='product-image-wrap'></div>"
-          );
+      "<div class='product-image-wrap'>" +
+      (
+        onSale
+          ? "<span class='product-badge sale'>Sale</span>"
+          : ""
+      ) +
+      (
+        gender
+          ? (
+              "<span class='product-gender'>" +
+              escapeHtml(gender) +
+              "</span>"
+            )
+          : ""
+      ) +
+      (
+        image
+          ? (
+              "<img " +
+              "class='product-image' " +
+              "src='" +
+              escapeHtml(image) +
+              "' " +
+              "alt='" +
+              escapeHtml(
+                product.title ||
+                  "Fragrance"
+              ) +
+              "' " +
+              "loading='lazy'>"
+            )
+          : ""
+      ) +
+      "</div>";
 
     return (
       "<article class='product-card'" +
@@ -3273,26 +3301,13 @@
 
       "<div class='product-info'>" +
 
-      (
-        genderLabel(product.type)
-          ? (
-              "<div class='product-head'>" +
-              "<div class='product-gender'>" +
-              escapeHtml(
-                genderLabel(product.type)
-              ) +
-              "</div>" +
-              "</div>"
-            )
-          : ""
-      ) +
-
+      "<div class='product-meta'>" +
       "<h3 class='product-title'>" +
       escapeHtml(
         product.title || ""
       ) +
       "</h3>" +
-
+      "<div class='product-price-col'>" +
       (
         product.price
           ? (
@@ -3304,6 +3319,19 @@
             )
           : ""
       ) +
+      (
+        onSale
+          ? (
+              "<div class='product-compare'>" +
+              escapeHtml(
+                product.compare_at_price
+              ) +
+              "</div>"
+            )
+          : ""
+      ) +
+      "</div>" +
+      "</div>" +
 
       "<button " +
       "type='button' " +
@@ -3345,36 +3373,26 @@
     row.className =
       "chat-row bot";
 
-    if (
-      limited.length === 1
-    ) {
-      row.innerHTML =
-        productCardHtml(
-          limited[0],
-          0
-        );
-    } else {
-      let html =
-        "<div class='product-grid'>";
+    let html =
+      "<div class='product-grid'>";
 
-      limited.forEach(
-        function (
-          product,
-          index
-        ) {
-          html +=
-            productCardHtml(
-              product,
-              index
-            );
-        }
-      );
+    limited.forEach(
+      function (
+        product,
+        index
+      ) {
+        html +=
+          productCardHtml(
+            product,
+            index
+          );
+      }
+    );
 
-      html +=
-        "</div>";
+    html +=
+      "</div>";
 
-      row.innerHTML = html;
-    }
+    row.innerHTML = html;
 
     chatThread.appendChild(row);
 

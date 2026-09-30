@@ -2972,8 +2972,10 @@ function isBestsellerQuestion(text) {
     /\b(best[\s-]?sell(?:er|ers|ing)|bestsellers?|top[\s-]?sell(?:er|ers|ing)|most sold|highest selling|most popular)\b/i.test(
       value
     ) ||
+    /\bsell(?:ing|er|ers)\b/i.test(value) ||
     /bikne\s+wa+l[aei]/i.test(value) ||
-    /sabse\s+(?:jyada|zyada|ziyada)\s+bik/i.test(value);
+    /sabse\s+(?:jyada|zyada|ziyada)\s+bik/i.test(value) ||
+    /\bbik(?:ne|ta|ti)\b/i.test(value);
 
   return (
     ranking &&
@@ -3053,6 +3055,17 @@ function cardFields(item) {
       price && !price.startsWith("$")
         ? `$${price}`
         : price,
+    compare_at_price: (() => {
+      const compare = String(item?.compare_at_price || "").trim();
+
+      if (!compare) {
+        return "";
+      }
+
+      return compare.startsWith("$")
+        ? compare
+        : `$${compare}`;
+    })(),
     description: String(
       item?.summary || item?.notes || ""
     ).slice(0, 140),

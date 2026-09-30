@@ -114,6 +114,14 @@ async function run() {
     true
   );
   assert.strictEqual(
+    t.isBestsellerQuestion("second top selling product kon hai"),
+    true
+  );
+  assert.strictEqual(
+    t.isBestsellerQuestion("second to selling product kon hai"),
+    true
+  );
+  assert.strictEqual(
     t.isBestsellerQuestion("what is the 2nd best selling product"),
     true
   );
