@@ -167,6 +167,20 @@ async function run() {
     0,
     "a title that says Woods is not a woody note"
   );
+  assert.strictEqual(t.noMatchReply().no_match, true);
+  assert.match(
+    t.noMatchReply().reply,
+    /if you'd like, i can suggest/i
+  );
+  assert.strictEqual(t.isSuggestionYes("yes"), true);
+  assert.strictEqual(t.isSuggestionYes("haan"), true);
+  assert.strictEqual(
+    t.lastReplyOfferedSuggestion([
+      { role: "assistant", content: t.noMatchReply().reply },
+    ]),
+    true
+  );
+  assert.strictEqual(t.isSuggestionYes("woody notes please"), false);
   assert.strictEqual(
     t.searchByIngredients(
       [realWoody],
@@ -258,7 +272,8 @@ async function run() {
   );
   assert.strictEqual(missing.body.exact_match, true);
   assert.strictEqual(missing.body.products.length, 0);
-  assert.match(missing.body.reply, /no current product/i);
+  assert.strictEqual(missing.body.no_match, true);
+  assert.match(missing.body.reply, /if you'd like, i can suggest/i);
   console.log(missing.body.reply);
 
   console.log("Live catalog: best seller without admin credentials");

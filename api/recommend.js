@@ -3321,6 +3321,72 @@ function matchCard(item, hits) {
   });
 }
 
+const NO_MATCH_REPLY =
+  "Nothing matched that. If you'd like, I can suggest something.";
+
+function isSuggestionYes(text) {
+  return /^(yes|yeah|yep|yup|sure|ok|okay|please|haan|ha+|han|suggest|suggestion|yes please|sure please|theek hai|thik hai|kar do|suggest karo|kuch suggest karo)[.!?\s]*$/i.test(
+    String(text || "").trim()
+  );
+}
+
+function lastReplyOfferedSuggestion(history) {
+  const items = Array.isArray(history) ? history : [];
+
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+
+    if (item?.role === "assistant" || item?.role === "ai") {
+      return /if you'd like, i can suggest/i.test(
+        item.content || ""
+      );
+    }
+  }
+
+  return false;
+}
+
+function noMatchReply() {
+  return {
+    reply: NO_MATCH_REPLY,
+    intent: "chat",
+    title: "",
+    handle: "",
+    products: [],
+    exact_match: true,
+    no_match: true,
+    bg_color: "#c9e2e8",
+  };
+}
+
+function suggestionReply(catalog) {
+  const picks = (catalog || [])
+    .filter(
+      (item) =>
+        item?.handle &&
+        item?.title &&
+        item.available !== false &&
+        !BLOCKED_HANDLES.has(item.handle)
+    )
+    .slice(0, 4);
+
+  if (!picks.length) {
+    return noMatchReply();
+  }
+
+  return {
+    reply: "Here are a few I can suggest.",
+    intent: "recommend",
+    title: "",
+    handle: "",
+    products: picks.map((item) => cardFields(item)),
+    exact_match: true,
+    suggested: true,
+    no_match: false,
+    bg_color: "#c9e2e8",
+  };
+}
+
 function rankLoose(catalog, text) {
   const terms = contentTerms(text);
 
@@ -3343,15 +3409,7 @@ function buildFastRecommendReply(text, catalog) {
   const budgetAsked = budgeted.length !== (catalog || []).length;
   const source = budgeted.length ? budgeted : [];
   const scentTerms = queryScentTerms(text);
-  const empty = {
-    reply: "I couldn't find a matching fragrance in the current collection.",
-    intent: "chat",
-    title: "",
-    handle: "",
-    products: [],
-    exact_match: true,
-    bg_color: "#c9e2e8",
-  };
+  const empty = noMatchReply();
 
   if (scentTerms.length) {
     const ranked = scentMatches(
@@ -3440,15 +3498,7 @@ function buildFactualIngredientReply(terms, matches) {
   const label = (terms || []).join(" and ");
 
   if (!shown.length) {
-    return {
-      reply: `I checked our collection and no current product lists ${label}.`,
-      intent: "chat",
-      title: "",
-      handle: "",
-      products: [],
-      exact_match: true,
-      bg_color: "#c9e2e8",
-    };
+    return noMatchReply();
   }
 
   const names = shown.map((item) => item.title);
@@ -5582,22 +5632,39 @@ module.exports = async (
     };
 
     if (
+      isSuggestionYes(text) &&
+      lastReplyOfferedSuggestion(history)
+    ) {
+      const catalog =
+        await loadFullCatalog().catch(() => []);
+
+      return sendFast(suggestionReply(catalog));
+    }
+
+    if (
       classification.query_type ===
         "greeting" ||
       classification.query_type ===
         "off_topic"
     ) {
-      return sendFast({
-        reply:
-          "Tell me a mood, occasion, or ingredient and I will match it to a scent we carry.",
+      if (
+        /^(hi|hello|hey|hii+|good morning|good evening|good afternoon|namaste)\b/i.test(
+          String(text || "").trim()
+        )
+      ) {
+        return sendFast({
+          reply:
+            "Hello. Tell me a mood, a note, or an occasion.",
+          intent: "chat",
+          title: "",
+          handle: "",
+          products: [],
+          exact_match: true,
+          bg_color: "#c9e2e8",
+        });
+      }
 
-        intent: "chat",
-        title: "",
-        handle: "",
-        products: [],
-        exact_match: true,
-        bg_color: "#c9e2e8",
-      });
+      return sendFast(noMatchReply());
     }
 
     if (
@@ -5756,6 +5823,9 @@ module.exports._test = {
   searchByIngredients,
   buildFactualIngredientReply,
   buildFactualBestsellerReply,
+  noMatchReply,
+  isSuggestionYes,
+  lastReplyOfferedSuggestion,
   loadBestsellerProducts,
   hasShopifyClientCredentials,
   hasShopifyAdminAuth,
