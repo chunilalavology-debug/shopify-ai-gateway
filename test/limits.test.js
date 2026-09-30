@@ -102,38 +102,13 @@ async function run() {
   assert.strictEqual(empty.body.error, "bad_input");
   passed += 2;
 
-  // --- Daily session limit enforced server-side (cannot bypass via client) ---
-  const sessionId = "bypass-test-session-" + Date.now();
-  const sessionKey = "s:" + t.sanitizeSession(sessionId);
-  const quota = t.getQuota(sessionKey);
-  quota.count = t.MAX_ASKS; // simulate already used today's free messages
-
-  const blocked = await post({
-    text: "warm vanilla scent",
-    session_id: sessionId,
-  });
-  assert.strictEqual(blocked.statusCode, 429);
-  assert.strictEqual(blocked.body.error, "rate_limit_exceeded");
-  assert.strictEqual(blocked.body.remaining, 0);
-  assert.strictEqual(blocked.body.message, t.DAILY_LIMIT_MESSAGE);
-  passed += 4;
-
-  // --- Clearing / rotating session_id still hits IP ceiling after abuse ---
-  const abuseIp = "198.51.100." + (Date.now() % 200);
-  const ipKey = "ip:" + abuseIp;
-  const ipQuota = t.getQuota(ipKey);
-  ipQuota.count = t.MAX_ASKS_PER_IP;
-
-  const ipBlocked = await post(
-    {
-      text: "fresh citrus perfume",
-      session_id: "brand-new-session-" + Date.now(),
-    },
-    { ip: abuseIp }
+  // --- Usage cap is temporarily disabled (do not call the model to prove it) ---
+  assert.strictEqual(
+    t.USAGE_LIMIT_ENABLED,
+    false,
+    "usage limit is temporarily off"
   );
-  assert.strictEqual(ipBlocked.statusCode, 429);
-  assert.strictEqual(ipBlocked.body.remaining, 0);
-  passed += 2;
+  passed += 1;
 
   // --- GET health reports new limits ---
   const getReq = { method: "GET", headers: {} };

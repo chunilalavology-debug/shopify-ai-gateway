@@ -1,6 +1,8 @@
 const { OpenAI } = require("openai");
 
-// Cost-control limits (enforced on the server)
+// Cost-control limits (enforced on the server when USAGE_LIMIT_ENABLED is true)
+// Temporarily off so shoppers are not capped. Set this back to true to restore it.
+const USAGE_LIMIT_ENABLED = false;
 const MAX_ASKS = 20; // free messages per user/session per rolling hour
 const MAX_ASKS_PER_IP = 60; // hard hourly ceiling per IP (anti-bypass)
 const WINDOW_MS = 60 * 60 * 1000; // rolling 1-hour window
@@ -11,7 +13,7 @@ const HISTORY_CONTENT_CHARS = 400;
 
 // Token limit is a generation ceiling, not a word count.
 // The final reply field is also hard-clamped to MAX_REPLY_WORDS below.
-const MAX_REPLY_WORDS = 100;
+const MAX_REPLY_WORDS = 28;
 const MAX_OUTPUT_TOKENS = 300;
 
 const HOURLY_LIMIT_MESSAGE =
@@ -34,6 +36,8 @@ let catalogCache = {
   products: null,
   expiresAt: 0,
 };
+
+let catalogRefresh = null;
 
 let storeContextCache = {
   text: null,
@@ -1529,60 +1533,13 @@ async function loadCollectionTitles() {
   return titles;
 }
 
-async function loadFullCatalog() {
-  const now =
-    Date.now();
-
-  if (
-    catalogCache.products &&
-    now <
-    catalogCache.expiresAt
-  ) {
-    return catalogCache.products;
-  }
-
-  // Prefer Admin API
-  if (
-    hasShopifyAdminAuth()
-  ) {
-    try {
-      const adminProducts =
-        await loadCatalogFromAdmin();
-
-      if (
-        adminProducts.length
-      ) {
-        catalogCache = {
-          products:
-            adminProducts,
-
-          expiresAt:
-            now +
-            CATALOG_CACHE_TTL_MS,
-        };
-
-        console.log(
-          `[catalog] Loaded ${adminProducts.length} products from Shopify Admin API`
-        );
-
-        return adminProducts;
-      }
-    } catch (err) {
-      console.error(
-        "Admin catalog failed, falling back to public products.json:",
-        err?.message || err
-      );
-    }
-  }
-
+async function loadPublicCatalog() {
   const allProducts = [];
-
-  const MAX_PAGES = 3;
 
   for (
     let page = 1;
-    page <= MAX_PAGES;
-    page++
+    page <= 3;
+    page += 1
   ) {
     const batch =
       await fetchProductPage(
@@ -1600,94 +1557,131 @@ async function loadFullCatalog() {
     }
   }
 
-  const collectionTitles =
-    await loadCollectionTitles()
-      .catch(() => []);
-
   const seen =
     new Set();
 
-  const unique =
-    allProducts
-      .filter((item) => {
-        if (
-          !item?.handle ||
-          !item?.title ||
-          BLOCKED_HANDLES.has(
-            item.handle
-          )
-        ) {
-          return false;
-        }
-
-        if (
-          seen.has(
-            item.handle
-          )
-        ) {
-          return false;
-        }
-
-        seen.add(
+  return allProducts
+    .filter((item) => {
+      if (
+        !item?.handle ||
+        !item?.title ||
+        BLOCKED_HANDLES.has(
           item.handle
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        seen.has(
+          item.handle
+        )
+      ) {
+        return false;
+      }
+
+      seen.add(
+        item.handle
+      );
+
+      return true;
+    })
+    .map((item) =>
+      mapProduct(
+        item,
+        []
+      )
+    );
+}
+
+async function refreshCatalog() {
+  const products =
+    await loadPublicCatalog();
+
+  if (
+    products.length
+  ) {
+    catalogCache = {
+      products,
+      expiresAt:
+        Date.now() +
+        CATALOG_CACHE_TTL_MS,
+    };
+
+    console.log(
+      `[catalog] Loaded ${products.length} products from public storefront`
+    );
+  }
+
+  if (
+    hasShopifyAdminAuth()
+  ) {
+    loadCatalogFromAdmin()
+      .then((adminProducts) => {
+        if (
+          !adminProducts.length
+        ) {
+          return;
+        }
+
+        catalogCache = {
+          products:
+            adminProducts,
+
+          expiresAt:
+            Date.now() +
+            CATALOG_CACHE_TTL_MS,
+        };
+
+        console.log(
+          `[catalog] Refreshed ${adminProducts.length} products from Shopify Admin API`
         );
-
-        return true;
       })
-      .map((item) => {
-        const mapped =
-          mapProduct(
-            item,
-            []
-          );
-
-        const hay =
-          `${mapped.title} ${mapped.type} ${mapped.tags}`.toLowerCase();
-
-        mapped.collections =
-          collectionTitles
-            .filter(
-              (title) => {
-                const words =
-                  title
-                    .toLowerCase()
-                    .split(
-                      /[^a-z0-9]+/
-                    )
-                    .filter(
-                      (w) =>
-                        w.length >=
-                        2
-                    );
-
-                return words.some(
-                  (word) =>
-                    hay.includes(
-                      word
-                    )
-                );
-              }
-            )
-            .slice(0, 4);
-
-        mapped.source =
-          "storefront";
-
-        return mapped;
+      .catch((err) => {
+        console.error(
+          "Admin catalog refresh failed:",
+          err?.message || err
+        );
       });
+  }
 
-  catalogCache = {
-    products: unique,
-    expiresAt:
-      now +
-      CATALOG_CACHE_TTL_MS,
-  };
+  return products;
+}
 
-  console.log(
-    `[catalog] Loaded ${unique.length} products from public storefront`
-  );
+function startCatalogRefresh() {
+  if (!catalogRefresh) {
+    catalogRefresh =
+      refreshCatalog()
+        .finally(() => {
+          catalogRefresh =
+            null;
+        });
+  }
 
-  return unique;
+  return catalogRefresh;
+}
+
+async function loadFullCatalog() {
+  const now =
+    Date.now();
+
+  if (
+    catalogCache.products &&
+    now <
+    catalogCache.expiresAt
+  ) {
+    return catalogCache.products;
+  }
+
+  if (
+    catalogCache.products
+  ) {
+    startCatalogRefresh();
+
+    return catalogCache.products;
+  }
+
+  return startCatalogRefresh();
 }
 
 async function fetchPolicyText(
@@ -2775,70 +2769,634 @@ function formatCatalog(
   ].join("\n");
 }
 
-function scoreProduct(
-  product,
-  terms
-) {
-  const metafieldText =
-    product.metafields
-      ? Object.values(
-        product.metafields
-      ).join(" ")
-      : "";
+const SEARCH_STOPWORDS = new Set([
+  "the", "and", "for", "with", "from", "that", "this", "your", "our",
+  "you", "are", "was", "has", "have", "what", "which", "who", "how",
+  "can", "please", "show", "find", "want", "need", "looking", "something",
+  "fragrance", "fragrances", "perfume", "perfumes", "scent", "scents",
+  "product", "products", "item", "items", "ingredient", "ingredients",
+  "note", "notes", "contain", "contains", "containing", "made", "using",
+  "having", "about", "into", "some", "any", "give", "like", "love",
+  "suggest", "recommend", "recommendation", "options", "option", "more",
+  "best", "seller", "sellers", "selling", "bestseller", "bestsellers",
+  "top", "most", "popular", "highest", "sold", "sabse", "jyada", "zyada",
+  "ziyada", "bikne", "wala", "wali", "waala", "konsa", "kaunsa", "kaun",
+  "hai", "hain", "kon", "tell", "list", "display", "browse", "collection",
+  "where", "when", "does", "did", "not", "but", "its", "just", "very",
+  "season", "seasonal",
+  "really", "good", "nice", "smell", "smells", "wear", "use", "used",
+  "makes", "make", "feel", "feeling", "should", "today", "tonight",
+  "search", "searching", "kind", "type", "ones", "one",
+]);
 
-  const hay = [
-    product.title,
-    product.handle,
-    product.type,
-    product.tags,
-    product.summary,
-    product.description,
-    product.notes,
-    product.ingredients,
-    product.longevity,
-    product.gender,
-    product.occasion,
+function contentTerms(text) {
+  return [
+    ...new Set(
+      String(text || "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .map((word) => word.trim())
+        .filter(
+          (word) =>
+            word.length >= 3 &&
+            !SEARCH_STOPWORDS.has(word)
+        )
+    ),
+  ].slice(0, 8);
+}
+
+function termVariants(term) {
+  const variants = [term];
+
+  if (term.endsWith("y") && term.length > 4) {
+    variants.push(term.slice(0, -1));
+  }
+
+  if (term.endsWith("s") && term.length > 4) {
+    variants.push(term.slice(0, -1));
+  }
+
+  return [...new Set(variants)];
+}
+
+function termMatches(text, term) {
+  const hay = String(text || "").toLowerCase();
+
+  if (!hay || !term) {
+    return false;
+  }
+
+  const escaped = term.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+
+  if (new RegExp("\\b" + escaped + "s?\\b", "i").test(hay)) {
+    return true;
+  }
+
+  return term.length >= 5 &&
+    new RegExp("\\b" + escaped, "i").test(hay);
+}
+
+function productMatchesTerm(product, term) {
+  const metafieldText = Object.values(
+    product?.metafields || {}
+  ).join(" ");
+
+  const fields = [
+    product?.title,
+    product?.tags,
+    product?.notes,
+    product?.ingredients,
+    product?.type,
+    product?.description,
+    product?.summary,
+    product?.longevity,
+    product?.gender,
+    product?.occasion,
     metafieldText,
-    (
-      product.collections ||
-      []
-    ).join(" "),
-  ]
-    .join(" ")
-    .toLowerCase();
+    (product?.collections || []).join(" "),
+  ];
 
+  return termVariants(term).some((variant) =>
+    fields.some((field) => termMatches(field, variant))
+  );
+}
+
+function scoreProduct(product, terms) {
   let score = 0;
 
-  for (
-    const term of terms
-  ) {
-    if (!term) {
+  for (const term of terms) {
+    if (!term || !productMatchesTerm(product, term)) {
       continue;
     }
 
-    if (
-      hay.includes(term)
-    ) {
-      score +=
-        term.length > 4
-          ? 3
-          : 2;
-    }
+    const variants = termVariants(term);
+    const hit = (field) =>
+      variants.some((variant) => termMatches(field, variant));
+
+    if (hit(product.title)) score += 8;
+    if (hit(product.notes) || hit(product.ingredients)) score += 7;
+    if (hit(product.tags)) score += 5;
+    if (hit(product.type)) score += 3;
+    if (hit(product.description) || hit(product.summary)) score += 3;
+
+    const metafieldText = Object.values(
+      product.metafields || {}
+    ).join(" ");
+
+    if (hit(metafieldText)) score += 7;
+    if (hit((product.collections || []).join(" "))) score += 2;
   }
 
-  if (
-    product.available
-  ) {
+  if (score <= 0) {
+    return 0;
+  }
+
+  if (product.available) {
     score += 1;
   }
 
-  if (
-    product.compare_at_price
-  ) {
+  if (product.compare_at_price) {
     score += 0.5;
   }
 
   return score;
+}
+
+const SALES_RANK_PATTERN =
+  /\b(?:1st|2nd|3rd|[4-9]th|10th|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|pehla|pahla|dusra|doosra|dusara|teesra|tisra|chautha|chotha|runner[-\s]?up)\b|#\s*\d+|\b(?:number|no\.?|rank)\s+\d+\b/gi;
+
+function withoutSalesRankWords(text) {
+  return String(text || "").replace(SALES_RANK_PATTERN, " ");
+}
+
+function explicitSalesRank(text) {
+  const value = String(text || "").toLowerCase();
+  const numbered = value.match(
+    /\b(?:number|no\.?|rank|#)\s*(\d+)\b/
+  );
+
+  if (numbered) {
+    const rank = Number(numbered[1]);
+
+    if (rank >= 1 && rank <= 12) {
+      return rank;
+    }
+  }
+
+  const rules = [
+    [/\b(?:10th|tenth)\b/, 10],
+    [/\b(?:9th|ninth)\b/, 9],
+    [/\b(?:8th|eighth)\b/, 8],
+    [/\b(?:7th|seventh)\b/, 7],
+    [/\b(?:6th|sixth)\b/, 6],
+    [/\b(?:5th|fifth)\b/, 5],
+    [/\b(?:4th|fourth|chautha|chotha)\b/, 4],
+    [/\b(?:3rd|third|teesra|tisra)\b/, 3],
+    [/\b(?:2nd|second|dusra|doosra|dusara|runner[-\s]?up)\b/, 2],
+    [/\b(?:1st|first|pehla|pahla)\b/, 1],
+  ];
+
+  for (const [pattern, rank] of rules) {
+    if (pattern.test(value)) {
+      return rank;
+    }
+  }
+
+  return null;
+}
+
+function rankLabel(rank) {
+  return (
+    [
+      "",
+      "first",
+      "second",
+      "third",
+      "fourth",
+      "fifth",
+      "sixth",
+      "seventh",
+      "eighth",
+      "ninth",
+      "tenth",
+    ][rank] || `${rank}th`
+  );
+}
+
+function isBestsellerQuestion(text) {
+  const value = String(text || "");
+  const ranking =
+    /\b(best[\s-]?sell(?:er|ers|ing)|bestsellers?|top[\s-]?sell(?:er|ers|ing)|most sold|highest selling|most popular)\b/i.test(
+      value
+    ) ||
+    /bikne\s+wa+l[aei]/i.test(value) ||
+    /sabse\s+(?:jyada|zyada|ziyada)\s+bik/i.test(value);
+
+  return (
+    ranking &&
+    contentTerms(withoutSalesRankWords(value)).length === 0
+  );
+}
+
+function extractIngredientQuery(text) {
+  const value = String(text || "").trim();
+
+  if (
+    !value ||
+    isBestsellerQuestion(value) ||
+    isDiscountQuestion(value) ||
+    /\b(ship(?:ping)?|delivery|return|refund|exchange)\b/i.test(value)
+  ) {
+    return null;
+  }
+
+  const terms = contentTerms(value);
+
+  if (!terms.length) {
+    return null;
+  }
+
+  const explicit =
+    /\b(ingredients?|contains|containing|made with|notes of|note of|having)\b/i.test(
+      value
+    ) || /\bwith\b/i.test(value);
+
+  const shortLookup =
+    terms.length === 1 &&
+    value.split(/\s+/).length <= 4;
+
+  if (!explicit && !shortLookup) {
+    return null;
+  }
+
+  return terms;
+}
+
+function searchByIngredients(catalog, terms) {
+  const required = (terms || []).filter(Boolean);
+
+  if (!required.length) {
+    return [];
+  }
+
+  return [...(catalog || [])]
+    .filter((product) =>
+      required.every((term) => productMatchesTerm(product, term))
+    )
+    .map((product) => ({
+      product,
+      score: scoreProduct(product, required),
+    }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((row) => row.product);
+}
+
+function cardFields(item) {
+  const price = String(item?.price || "").trim();
+  const handle = String(item?.handle || "").trim();
+
+  return {
+    title: item?.title || "",
+    handle,
+    url:
+      item?.url ||
+      (handle
+        ? `https://${SHOP_DOMAIN}/products/${handle}`
+        : ""),
+    image: item?.image || "",
+    type: String(item?.type || "").trim(),
+    price:
+      price && !price.startsWith("$")
+        ? `$${price}`
+        : price,
+    description: String(
+      item?.summary || item?.notes || ""
+    ).slice(0, 140),
+  };
+}
+
+function rankLoose(catalog, text) {
+  const terms = contentTerms(text);
+
+  if (!terms.length) {
+    return [];
+  }
+
+  return [...(catalog || [])]
+    .map((product) => ({
+      product,
+      score: scoreProduct(product, terms),
+    }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((row) => row.product);
+}
+
+function buildFastRecommendReply(text, catalog) {
+  const budgeted = filterByBudget(catalog || [], text);
+  const source = budgeted.length ? budgeted : catalog || [];
+  let matches = rankLoose(source, text);
+  const focused = findReferencedProduct(text, source, []);
+
+  if (
+    focused &&
+    !matches.some((item) => item.handle === focused.handle)
+  ) {
+    matches = [focused, ...matches];
+  }
+
+  const matched = matches.length > 0;
+
+  if (!matches.length) {
+    const fragrances = source.filter((item) => {
+      const hay = `${item.type || ""} ${item.title || ""}`.toLowerCase();
+
+      if (item.available === false) {
+        return false;
+      }
+
+      if (/\b(candle|soap|diffuser|accessor(?:y|ies))\b/.test(hay)) {
+        return false;
+      }
+
+      return /\b(perfume|fragrance|cologne|parfum|scent|splash|mist)\b/.test(
+        hay
+      );
+    });
+
+    matches = (
+      fragrances.length
+        ? fragrances
+        : source.filter((item) => item.available !== false)
+    ).slice(0, 4);
+  } else {
+    matches = matches.slice(0, 4);
+  }
+
+  const names = matches
+    .map((item) => item.title)
+    .filter(Boolean);
+
+  let reply = "I couldn't find a matching fragrance in the current collection.";
+
+  if (names.length === 1 && matched) {
+    reply = `${names[0]} is the closest match.`;
+  } else if (names.length && matched) {
+    reply = "These match what you asked for.";
+  } else if (names.length) {
+    reply = "Here are a few fragrances to start with.";
+  }
+
+  return {
+    reply,
+    intent: names.length ? "recommend" : "chat",
+    title: names.length === 1 ? matches[0].title : "",
+    handle: names.length === 1 ? matches[0].handle : "",
+    products: matches.map(cardFields),
+    exact_match: true,
+    bg_color: "#c9e2e8",
+  };
+}
+
+function buildPolicyReply(kind, contextText) {
+  const label =
+    kind === "shipping"
+      ? "Shipping policy:"
+      : "Returns/refunds:";
+  const line =
+    String(contextText || "")
+      .split("\n")
+      .find((row) => row.startsWith(label)) || "";
+  const body = line.replace(label, "").trim();
+  const reply = body
+    ? body
+    : kind === "shipping"
+      ? "I couldn't load the shipping policy just now. Email cs@cn1fragrance.com and they can confirm delivery."
+      : "I couldn't load the return policy just now. Email cs@cn1fragrance.com and they can confirm returns.";
+
+  return {
+    reply,
+    intent: "chat",
+    title: "",
+    handle: "",
+    products: [],
+    exact_match: true,
+    bg_color: "#c9e2e8",
+  };
+}
+
+function buildFactualIngredientReply(terms, matches) {
+  const shown = (matches || []).slice(0, 4);
+  const label = (terms || []).join(" and ");
+
+  if (!shown.length) {
+    return {
+      reply: `I checked our collection and no current product lists ${label}.`,
+      intent: "chat",
+      title: "",
+      handle: "",
+      products: [],
+      exact_match: true,
+      bg_color: "#c9e2e8",
+    };
+  }
+
+  const names = shown.map((item) => item.title);
+  const reply =
+    shown.length === 1
+      ? `${names[0]} lists ${label}.`
+      : `These list ${label}.`;
+
+  return {
+    reply,
+    intent: "recommend",
+    title: shown.length === 1 ? shown[0].title : "",
+    handle: shown.length === 1 ? shown[0].handle : "",
+    products: shown.map(cardFields),
+    exact_match: true,
+    bg_color: "#c9e2e8",
+  };
+}
+
+let salesRankCache = {
+  products: null,
+  expiresAt: 0,
+};
+
+function normalizeTitle(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function readSalesTable(tableData) {
+  const columns = (tableData?.columns || []).map((column) =>
+    String(column?.name || "")
+  );
+
+  return (tableData?.rows || []).map((row) => {
+    if (row && typeof row === "object" && !Array.isArray(row)) {
+      return row;
+    }
+
+    const record = {};
+
+    columns.forEach((name, index) => {
+      record[name] = Array.isArray(row) ? row[index] : "";
+    });
+
+    return record;
+  });
+}
+
+async function loadRankFromSales() {
+  const data = await shopifyAdminGraphql(
+    `query SalesRank {
+      shopifyqlQuery(query: "FROM sales SHOW net_items_sold GROUP BY product_title SINCE 2015-01-01 UNTIL today ORDER BY net_items_sold DESC LIMIT 12") {
+        tableData {
+          columns { name }
+          rows
+        }
+        parseErrors
+      }
+    }`
+  );
+
+  const parsed = data?.shopifyqlQuery;
+
+  if (parsed?.parseErrors?.length) {
+    throw new Error(
+      parsed.parseErrors.join("; ")
+    );
+  }
+
+  const catalog = await loadFullCatalog().catch(() => []);
+  const byTitle = new Map(
+    (catalog || []).map((product) => [
+      normalizeTitle(product.title),
+      product,
+    ])
+  );
+
+  const ranked = [];
+
+  for (const row of readSalesTable(parsed?.tableData)) {
+    const title = String(row.product_title || "").trim();
+    const sold = Number(row.net_items_sold);
+
+    if (!title || !Number.isFinite(sold) || sold <= 0) {
+      continue;
+    }
+
+    const match = byTitle.get(normalizeTitle(title));
+
+    if (!match?.handle || BLOCKED_HANDLES.has(match.handle)) {
+      continue;
+    }
+
+    ranked.push({
+      title: match.title,
+      handle: match.handle,
+      type: match.type || "",
+      image: match.image || "",
+      units_sold: sold,
+      source: "shopify-sales",
+    });
+  }
+
+  ranked.sort((a, b) => b.units_sold - a.units_sold);
+
+  return ranked.slice(0, 12);
+}
+
+async function loadBestsellerProducts() {
+  const now = Date.now();
+
+  if (
+    salesRankCache.products &&
+    now < salesRankCache.expiresAt
+  ) {
+    return salesRankCache.products;
+  }
+
+  if (!hasShopifyAdminAuth()) {
+    return [];
+  }
+
+  try {
+    const ranked = await loadRankFromSales();
+
+    if (ranked.length) {
+      salesRankCache = {
+        products: ranked,
+        expiresAt: now + CATALOG_CACHE_TTL_MS,
+      };
+    }
+
+    return ranked;
+  } catch (err) {
+    console.warn(
+      "Order sales rank failed:",
+      err?.message || err
+    );
+
+    return [];
+  }
+}
+
+function buildFactualBestsellerReply(text, ranked) {
+  const list = (ranked || []).filter(
+    (item) => item?.title && item?.handle
+  );
+
+  if (!list.length) {
+    return {
+      reply:
+        "I can't read order sales yet. The Shopify app needs report access.",
+      intent: "chat",
+      title: "",
+      handle: "",
+      products: [],
+      exact_match: true,
+      bg_color: "#c9e2e8",
+    };
+  }
+
+  const rank = explicitSalesRank(text);
+  const many =
+    rank == null &&
+    /\b(best sellers|bestsellers|top sellers)\b/i.test(text || "");
+
+  if (many) {
+    const shown = list.slice(0, 4);
+
+    return {
+      reply: "These are our best sellers right now.",
+      intent: "recommend",
+      title: "",
+      handle: "",
+      products: shown.map(cardFields),
+      exact_match: true,
+      bg_color: "#c4a07a",
+    };
+  }
+
+  const place = rank || 1;
+  const picked = list[place - 1];
+
+  if (!picked) {
+    return {
+      reply: `I don't have a number ${place} seller in the current sales list.`,
+      intent: "chat",
+      title: "",
+      handle: "",
+      products: [],
+      exact_match: true,
+      bg_color: "#c4a07a",
+    };
+  }
+
+  const shown = [picked];
+  const top = picked;
+  const reply =
+    place === 1
+      ? `${top.title} is our top seller.`
+      : `${top.title} is our ${rankLabel(place)} top seller.`;
+
+  return {
+    reply,
+    intent: "recommend",
+    title: shown.length === 1 ? top.title : "",
+    handle: shown.length === 1 ? top.handle : "",
+    products: shown.map(cardFields),
+    exact_match: true,
+    bg_color: "#c4a07a",
+  };
 }
 
 function searchCatalog(
@@ -2847,43 +3405,14 @@ function searchCatalog(
   text,
   limit = 12
 ) {
-  const terms = [
-    ...(Array.isArray(
-      searchTerms
-    )
-      ? searchTerms
-      : []),
-
-    ...String(
-      text || ""
-    )
-      .toLowerCase()
-      .split(
-        /[^a-z0-9$]+/
-      )
-      .filter(
-        (word) =>
-          word.length > 2
-      ),
-  ]
-    .map((term) =>
-      String(
-        term || ""
-      )
-        .toLowerCase()
-        .trim()
-    )
-    .filter(Boolean);
-
-  const uniqueTerms =
+  const uniqueTerms = contentTerms(
     [
-      ...new Set(
-        terms
-      ),
-    ].slice(
-      0,
-      16
-    );
+      ...(Array.isArray(searchTerms)
+        ? searchTerms
+        : []),
+      text,
+    ].join(" ")
+  );
 
   if (
     !uniqueTerms.length
@@ -2912,7 +3441,13 @@ function searchCatalog(
     )
     .filter(
       (row) =>
-        row.score > 0
+        row.score > 0 &&
+        uniqueTerms.every((term) =>
+          productMatchesTerm(
+            row.product,
+            term
+          )
+        )
     )
     .sort(
       (a, b) =>
@@ -3145,23 +3680,10 @@ function classifyIntentHeuristic(
         false,
 
       focus_previous:
-        focusPrevious ||
-        previousHandles.length >
-        0,
+        focusPrevious,
 
       search_terms:
-        lower
-          .split(
-            /[^a-z0-9]+/
-          )
-          .filter(
-            (w) =>
-              w.length > 3
-          )
-          .slice(
-            0,
-            8
-          ),
+        contentTerms(lower),
     };
   }
 
@@ -3659,20 +4181,6 @@ async function gatherStoreData({
         ...collectionProducts,
         ...nonCollectionMatches,
       ];
-    }
-
-    if (
-      !matches.length &&
-      catalog.length
-    ) {
-      matches =
-        filterByBudget(
-          catalog,
-          text
-        ).slice(
-          0,
-          14
-        );
     }
 
     const focused =
@@ -4477,6 +4985,14 @@ module.exports = async (
       )
       .trim();
 
+  if (body.warmup === true) {
+    await loadFullCatalog().catch(() => []);
+
+    return res.status(200).json({
+      ok: true,
+    });
+  }
+
   if (!rawText) {
     return res
       .status(400)
@@ -4531,10 +5047,11 @@ module.exports = async (
     );
 
   if (
-    sessionQuota.count >=
-    MAX_ASKS ||
-    ipQuota.count >=
-    MAX_ASKS_PER_IP
+    USAGE_LIMIT_ENABLED &&
+    (sessionQuota.count >=
+      MAX_ASKS ||
+      ipQuota.count >=
+      MAX_ASKS_PER_IP)
   ) {
     const resetAt =
       sessionQuota.count >=
@@ -4588,83 +5105,62 @@ module.exports = async (
       .trim()
       .toLowerCase();
 
-  let customerSync =
+  const customerSync =
     null;
 
   if (
     customerEmail
   ) {
-    customerSync =
-      await ensureShopifyCustomer(
-        customerEmail
-      );
+    ensureShopifyCustomer(
+      customerEmail
+    )
+      .then((result) => {
+        if (
+          !result?.ok
+        ) {
+          console.warn(
+            "Shopify customer sync skipped/failed:",
+            result
+          );
+
+          return;
+        }
+
+        console.log(
+          "Shopify customer sync:",
+          result.action,
+          result.id
+        );
+      })
+      .catch((err) => {
+        console.warn(
+          "Shopify customer sync skipped/failed:",
+          err?.message || err
+        );
+      });
+  }
+
+  if (USAGE_LIMIT_ENABLED) {
+    sessionQuota.count += 1;
 
     if (
-      !customerSync?.ok
+      ipQuota !==
+      sessionQuota
     ) {
-      console.warn(
-        "Shopify customer sync skipped/failed:",
-        customerSync
-      );
-    } else {
-      console.log(
-        "Shopify customer sync:",
-        customerSync.action,
-        customerSync.id
-      );
+      ipQuota.count += 1;
     }
   }
 
-  sessionQuota.count += 1;
-
-  if (
-    ipQuota !==
-    sessionQuota
-  ) {
-    ipQuota.count += 1;
-  }
-
   try {
-    const openai =
-      getOpenAIClient();
-
-    // 1) Determine intent
-    const classification =
-      await classifyIntent(
-        openai,
-        text,
-        history,
-        previousHandles
-      );
-
-    // 2) Discount path
-    if (
-      classification.query_type ===
-      "discount" ||
-      isDiscountQuestion(
-        text
-      )
-    ) {
-      const catalog =
-        await loadFullCatalog()
-          .catch(
-            () => []
-          );
-
-      const coupons =
-        await loadPublishedCoupons()
-          .catch(
-            () => []
-          );
+    if (isBestsellerQuestion(text)) {
+      const ranked =
+        await loadBestsellerProducts()
+          .catch(() => []);
 
       const payload =
-        buildFactualDiscountReply(
-          {
-            text,
-            catalog,
-            previousHandles,
-            coupons,
-          }
+        buildFactualBestsellerReply(
+          text,
+          ranked
         );
 
       payload.reply =
@@ -4702,141 +5198,206 @@ module.exports = async (
         });
     }
 
-    const storeFacts =
-      await gatherStoreData({
-        classification,
+    const ingredientTerms =
+      extractIngredientQuery(text);
+
+    if (ingredientTerms) {
+      const catalog =
+        await loadFullCatalog()
+          .catch(() => []);
+
+      const matches =
+        searchByIngredients(
+          catalog,
+          ingredientTerms
+        );
+
+      const payload =
+        buildFactualIngredientReply(
+          ingredientTerms,
+          matches
+        );
+
+      payload.reply =
+        limitReplyWords(
+          payload.reply
+        );
+
+      return res
+        .status(200)
+        .json({
+          ...payload,
+
+          remaining:
+            Math.max(
+              0,
+              MAX_ASKS -
+              sessionQuota.count
+            ),
+
+          reset_at:
+            sessionQuota.reset,
+
+          retry_minutes:
+            Math.max(
+              1,
+              Math.ceil(
+                (sessionQuota.reset -
+                  Date.now()) /
+                60000
+              )
+            ),
+
+          customer_sync:
+            customerSync,
+        });
+    }
+
+    const classification =
+      classifyIntentHeuristic(
         text,
-        previousHandles,
+        previousHandles
+      );
+
+    const sendFast = (payload) => {
+      payload.reply =
+        limitReplyWords(
+          payload.reply
+        );
+
+      return res
+        .status(200)
+        .json({
+          ...payload,
+
+          remaining:
+            Math.max(
+              0,
+              MAX_ASKS -
+              sessionQuota.count
+            ),
+
+          reset_at:
+            sessionQuota.reset,
+
+          retry_minutes:
+            Math.max(
+              1,
+              Math.ceil(
+                (sessionQuota.reset -
+                  Date.now()) /
+                60000
+              )
+            ),
+
+          customer_sync:
+            customerSync,
+        });
+    };
+
+    if (
+      classification.query_type ===
+        "greeting" ||
+      classification.query_type ===
+        "off_topic"
+    ) {
+      return sendFast({
+        reply:
+          "Tell me a mood, occasion, or ingredient and I will match it to a scent we carry.",
+
+        intent: "chat",
+        title: "",
+        handle: "",
+        products: [],
+        exact_match: true,
+        bg_color: "#c9e2e8",
       });
+    }
 
-    // 3) Final AI answer
-    const prompt =
-      buildAnswerPrompt({
-        text,
-        history,
-        previousHandles,
-        classification,
-        storeFacts,
-      });
+    if (
+      classification.query_type ===
+        "discount" ||
+      isDiscountQuestion(
+        text
+      )
+    ) {
+      const catalog =
+        await loadFullCatalog()
+          .catch(
+            () => []
+          );
 
-    const bindPool = [
-      ...(storeFacts.focused
-        ? [
-          storeFacts.focused,
-        ]
-        : []),
+      const coupons =
+        await loadPublishedCoupons()
+          .catch(
+            () => []
+          );
 
-      ...(storeFacts.catalog ||
-        []),
-    ];
-
-    const rawPayload =
-      normalizePayload(
-        await recommend(
-          openai,
-          prompt
+      return sendFast(
+        buildFactualDiscountReply(
+          {
+            text,
+            catalog,
+            previousHandles,
+            coupons,
+          }
         )
       );
+    }
 
-    // Sanitize reply
-    rawPayload.reply =
-      sanitizeReply(
-        rawPayload.reply
-      );
-
-    // HARD SERVER-SIDE 100-WORD CAP
-    rawPayload.reply =
-      limitReplyWords(
-        rawPayload.reply
-      );
-
-    // Fallback: extract products from reply
     if (
-      classification.needs_catalog &&
-      !rawPayload.products
-        ?.length &&
-      rawPayload.reply &&
-      bindPool.length
+      classification.query_type ===
+        "shipping" ||
+      classification.query_type ===
+        "returns"
     ) {
-      const extracted =
-        extractProductsFromReply(
-          rawPayload.reply,
-          bindPool
+      const policies =
+        await loadStoreContext(
+          []
+        ).catch(
+          () => ""
+        );
+
+      return sendFast(
+        buildPolicyReply(
+          classification.query_type,
+          policies
+        )
+      );
+    }
+
+    const catalog =
+      await loadFullCatalog()
+        .catch(
+          () => []
+        );
+
+    return sendFast(
+      buildFastRecommendReply(
+        text,
+        catalog
+      )
+    );
+  } catch (err) {
+    if (USAGE_LIMIT_ENABLED) {
+      sessionQuota.count =
+        Math.max(
+          0,
+          sessionQuota.count -
+          1
         );
 
       if (
-        extracted.length
+        ipQuota !==
+        sessionQuota
       ) {
-        rawPayload.products =
-          extracted;
-
-        rawPayload.intent =
-          "recommend";
-
-        console.log(
-          `[products] Extracted ${extracted.length} product(s) from reply text:`,
-          extracted
-            .map(
-              (p) =>
-                p.handle
-            )
-            .join(", ")
-        );
-      }
-    }
-
-    const payload =
-      bindToCatalog(
-        rawPayload,
-        bindPool
-      );
-
-    return res
-      .status(200)
-      .json({
-        ...payload,
-
-        remaining:
+        ipQuota.count =
           Math.max(
             0,
-            MAX_ASKS -
-            sessionQuota.count
-          ),
-
-        reset_at:
-          sessionQuota.reset,
-
-        retry_minutes:
-          Math.max(
-            1,
-            Math.ceil(
-              (sessionQuota.reset -
-                Date.now()) /
-              60000
-            )
-          ),
-
-        customer_sync:
-          customerSync,
-      });
-  } catch (err) {
-    sessionQuota.count =
-      Math.max(
-        0,
-        sessionQuota.count -
-        1
-      );
-
-    if (
-      ipQuota !==
-      sessionQuota
-    ) {
-      ipQuota.count =
-        Math.max(
-          0,
-          ipQuota.count -
-          1
-        );
+            ipQuota.count -
+            1
+          );
+      }
     }
 
     console.error(
@@ -4863,8 +5424,13 @@ module.exports = async (
   }
 };
 
+if (process.env.VERCEL) {
+  startCatalogRefresh().catch(() => {});
+}
+
 // Test helpers
 module.exports._test = {
+  USAGE_LIMIT_ENABLED,
   MAX_ASKS,
   MAX_ASKS_PER_IP,
   WINDOW_MS,
@@ -4896,6 +5462,14 @@ module.exports._test = {
   searchCatalog,
   filterByBudget,
   scoreProduct,
+  contentTerms,
+  productMatchesTerm,
+  isBestsellerQuestion,
+  extractIngredientQuery,
+  searchByIngredients,
+  buildFactualIngredientReply,
+  buildFactualBestsellerReply,
+  loadBestsellerProducts,
   hasShopifyClientCredentials,
   hasShopifyAdminAuth,
   getShopifyShop,

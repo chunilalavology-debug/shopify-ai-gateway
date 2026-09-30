@@ -642,10 +642,10 @@
     display: grid;
 
     grid-template-columns:
-      minmax(280px, 0.9fr)
-      minmax(420px, 1.2fr);
+      minmax(150px, 220px)
+      minmax(0, 1fr);
 
-    gap: 28px;
+    gap: 16px;
 
     align-items: stretch;
 
@@ -658,73 +658,23 @@
     flex-direction: column;
     justify-content: center;
 
-    padding: 36px 32px;
+    padding: 20px 16px;
   }
 
   .scent-finder-app .chat-title {
-    max-width: 500px;
+    max-width: 200px;
 
-    font-size: clamp(28px, 3.4vw, 42px);
-    line-height: 1.1;
+    font-size: clamp(20px, 2vw, 28px);
+    line-height: 1.15;
   }
 
   .scent-finder-app .chat-description {
-    max-width: 460px;
+    max-width: 200px;
 
-    margin-bottom: 22px;
+    margin-bottom: 0;
 
-    font-size: 15px;
-  }
-
-  .scent-finder-app .quota-pills {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-
-    width: fit-content;
-
-    padding: 8px 12px;
-
-    border-radius: 999px;
-
-    background: rgba(255, 255, 255, 0.5);
-
-    color: rgba(27, 23, 20, 0.55);
-
-    font-size: 11px;
-    font-weight: 600;
-
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-
-  .scent-finder-app .quota-dots {
-    display: flex;
-    gap: 5px;
-  }
-
-  .scent-finder-app .quota-dots span {
-    width: 8px;
-    height: 8px;
-
-    border-radius: 50%;
-
-    background: rgba(255, 255, 255, 0.9);
-
-    box-shadow:
-      inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-
-    transition:
-      background 0.25s ease,
-      transform 0.25s ease;
-  }
-
-  .scent-finder-app .quota-dots span.used {
-    background: var(--sf-coral);
-
-    box-shadow: none;
-
-    transform: scale(1.08);
+    font-size: 12px;
+    line-height: 1.45;
   }
 
   .scent-finder-app .chat-panel {
@@ -821,47 +771,27 @@
     font-weight: 700;
   }
 
-  .scent-finder-app .ai-short-reply {
+  .scent-finder-app .ai-reply-label {
     display: block;
 
+    margin-bottom: 4px;
+
+    font-size: 11px;
+  }
+
+  .scent-finder-app .ai-short-reply {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
     max-width: 100%;
+    overflow: hidden;
 
     margin: 0;
 
     line-height: 1.45;
 
     word-break: break-word;
-  }
-
-  .scent-finder-app .limit-card {
-    width: 100%;
-
-    padding: 20px 22px;
-
-    border-radius: 18px;
-
-    background:
-      linear-gradient(
-        180deg,
-        rgba(255, 248, 246, 0.96),
-        rgba(255, 236, 230, 0.92)
-      );
-
-    border:
-      1px solid rgba(229, 107, 93, 0.28);
-
-    color: #7a332b;
-
-    font-size: 13px;
-    line-height: 1.6;
-  }
-
-  .scent-finder-app .limit-card strong {
-    display: block;
-
-    margin-bottom: 6px;
-
-    font-size: 14px;
   }
 
   .scent-finder-app .product-card {
@@ -889,11 +819,48 @@
   }
 
   .scent-finder-app .product-grid {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(132px, 1fr));
+    grid-auto-flow: column;
 
     gap: 10px;
 
+    width: 100%;
+
+    overflow-x: auto;
+  }
+
+  .scent-finder-app .product-grid .product-card {
+    display: flex;
+    flex-direction: column;
+
+    min-width: 0;
+
+    gap: 8px;
+
+    padding: 10px;
+  }
+
+  .scent-finder-app .product-grid .product-image-wrap {
+    width: 100%;
+    height: 112px;
+  }
+
+  .scent-finder-app .product-grid .product-title {
+    margin-bottom: 4px;
+
+    font-size: 13px;
+  }
+
+  .scent-finder-app .product-grid .product-description {
+    display: none;
+  }
+
+  .scent-finder-app .product-grid .product-price {
+    margin-bottom: 8px;
+  }
+
+  .scent-finder-app .product-grid .product-link {
     width: 100%;
   }
 
@@ -954,8 +921,18 @@
     min-width: 0;
   }
 
-  .scent-finder-app .product-label {
+  .scent-finder-app .product-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 8px;
+
     margin-bottom: 5px;
+  }
+
+  .scent-finder-app .product-label {
+    margin-bottom: 0;
 
     color: var(--sf-coral);
 
@@ -964,6 +941,21 @@
 
     letter-spacing: 0.12em;
     text-transform: uppercase;
+  }
+
+  .scent-finder-app .product-gender {
+    margin-left: auto;
+    margin-bottom: 0;
+
+    color: var(--sf-muted);
+
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+
+    white-space: nowrap;
   }
 
   .scent-finder-app .product-title {
@@ -999,7 +991,12 @@
 
     padding: 9px 16px;
 
+    border: 0;
     border-radius: 999px;
+
+    cursor: pointer;
+
+    font-family: inherit;
 
     background:
       linear-gradient(
@@ -1023,6 +1020,12 @@
   .scent-finder-app .product-link:hover {
     opacity: 0.9;
     transform: translateY(-1px);
+  }
+
+  .scent-finder-app .product-link:disabled {
+    opacity: 0.65;
+    cursor: wait;
+    transform: none;
   }
 
   .scent-finder-app .loading-state {
@@ -1215,14 +1218,6 @@
     transform: none;
   }
 
-  .scent-finder-app .quota-note {
-    margin: 10px 8px 0;
-
-    color: rgba(27, 23, 20, 0.45);
-
-    font-size: 11px;
-  }
-
   .scent-finder-app .finder-footer {
     position: absolute;
 
@@ -1282,7 +1277,7 @@
       padding: 12px 12px 70px;
     }
 
-    .scent-finder-app .product-card {
+    .scent-finder-app .chat-row.bot > .product-card {
       grid-template-columns: 92px 1fr;
 
       gap: 12px;
@@ -1290,9 +1285,18 @@
       padding: 10px;
     }
 
-    .scent-finder-app .product-image-wrap {
+    .scent-finder-app .chat-row.bot > .product-card .product-image-wrap {
       width: 92px;
       height: 112px;
+    }
+
+    .scent-finder-app .product-grid {
+      grid-template-columns: repeat(4, minmax(132px, 1fr));
+    }
+
+    .scent-finder-app .product-grid .product-image-wrap {
+      width: 100%;
+      height: 96px;
     }
 
     .scent-finder-app .ask-button {
@@ -1383,38 +1387,76 @@
           </span>
         </p>
 
+        {% liquid
+          assign option1_label = section.settings.option1_label | default: 'What do you recommend for today?'
+          assign option1_query = section.settings.option1_query | default: 'What do you recommend for today?'
+          if option1_label == 'A scent with amber notes' or option1_label == 'What is the top seller for the season?' or option1_label == 'What are you looking for today?'
+            assign option1_label = 'What do you recommend for today?'
+          endif
+          if option1_query == 'A scent with amber notes' or option1_query == 'What is the top seller for the season?' or option1_query == 'What are you looking for today?'
+            assign option1_query = 'What do you recommend for today?'
+          endif
+
+          assign option2_label = section.settings.option2_label | default: 'Which scent has notes of amber?'
+          assign option2_query = section.settings.option2_query | default: 'Which scent has notes of amber?'
+          if option2_label == 'A perfume to wear to weekend brunch'
+            assign option2_label = 'Which scent has notes of amber?'
+          endif
+          if option2_query == 'A perfume to wear to weekend brunch'
+            assign option2_query = 'Which scent has notes of amber?'
+          endif
+
+          assign option3_label = section.settings.option3_label | default: 'What is the top seller for the season?'
+          assign option3_query = section.settings.option3_query | default: 'What is the top seller for the season?'
+          if option3_label == "Smell like Tom Ford's Tobacco Vanille" or option3_label == 'Smell like Tom Ford Tobacco Vanille' or option3_label == 'What should I wear to brunch?'
+            assign option3_label = 'What is the top seller for the season?'
+          endif
+          if option3_query == "Smell like Tom Ford's Tobacco Vanille" or option3_query == 'Smell like Tom Ford Tobacco Vanille' or option3_query == 'What should I wear to brunch?'
+            assign option3_query = 'What is the top seller for the season?'
+          endif
+
+          assign option4_label = section.settings.option4_label | default: 'What should I wear tonight?'
+          assign option4_query = section.settings.option4_query | default: 'What should I wear tonight?'
+          if option4_label == 'Perfume that makes me feel sexy' or option4_label == 'Which perfume makes me feel sexy?'
+            assign option4_label = 'What should I wear tonight?'
+          endif
+          if option4_query == 'Perfume that makes me feel sexy' or option4_query == 'Which perfume makes me feel sexy?'
+            assign option4_query = 'What should I wear tonight?'
+          endif
+        %}
+
         <div class="landing-options">
 
           <button
             type="button"
             class="landing-option"
-            data-query="{{ section.settings.option1_query | default: 'A scent with amber notes' | escape }}"
+            data-query="{{ option1_query | escape }}"
           >
-            {{ section.settings.option1_label | default: 'A scent with amber notes' }}
+            {{ option1_label }}
           </button>
 
           <button
             type="button"
             class="landing-option"
-            data-query="{{ section.settings.option2_query | default: 'A perfume to wear to weekend brunch' | escape }}"
+            data-query="{{ option2_query | escape }}"
           >
-            {{ section.settings.option2_label | default: 'A perfume to wear to weekend brunch' }}
+            {{ option2_label }}
           </button>
 
           <button
             type="button"
             class="landing-option"
-            data-query="{{ section.settings.option3_query | default: 'Smell like Tom Ford Tobacco Vanille' | escape }}"
+            data-query="{{ option3_query | escape }}"
           >
-            {{ section.settings.option3_label | default: "Smell like Tom Ford's Tobacco Vanille" }}
+            {{ option3_label }}
           </button>
 
           <button
             type="button"
             class="landing-option"
-            data-query="{{ section.settings.option4_query | default: 'Perfume that makes me feel sexy' | escape }}"
+            data-query="{{ option4_query | escape }}"
           >
-            {{ section.settings.option4_label | default: 'Perfume that makes me feel sexy' }}
+            {{ option4_label }}
           </button>
 
         </div>
@@ -1565,20 +1607,6 @@
             Tell me about the mood, occasion, ingredients, or fragrances you love and I'll help you find something from our collection.
           </p>
 
-          <div
-            class="quota-pills"
-            aria-live="polite"
-          >
-            <div
-              class="quota-dots"
-              id="quota-dots-{{ section.id }}"
-            ></div>
-
-            <span id="quota-label-{{ section.id }}">
-              20 messages left
-            </span>
-          </div>
-
         </div>
 
         <div class="sf-card chat-panel">
@@ -1666,13 +1694,6 @@
 
             </div>
 
-            <p
-              class="quota-note"
-              id="quota-note-{{ section.id }}"
-            >
-              You can send 20 free messages each day.
-            </p>
-
           </div>
         </div>
 
@@ -1698,6 +1719,9 @@
 
   const MAX_ASKS =
     Number({{ section.settings.max_asks | default: 20 | json }}) || 20;
+
+  // Temporarily off. Set to true to restore the free-message cap.
+  const USAGE_LIMIT_ENABLED = false;
 
   const MAX_INPUT_WORDS = 800;
 
@@ -1776,6 +1800,11 @@
   const restartButton =
     document.getElementById(
       "restart-button-" + sectionId
+    );
+
+  const quotaPills =
+    document.getElementById(
+      "quota-pills-" + sectionId
     );
 
   const quotaDots =
@@ -1922,69 +1951,19 @@
       sentenceMatches &&
       sentenceMatches.length
     ) {
-      let shortText = "";
-
-      for (
-        let i = 0;
-        i < sentenceMatches.length;
-        i += 1
-      ) {
-        const sentence =
-          sentenceMatches[i].trim();
-
-        if (!sentence) {
-          continue;
-        }
-
-        const candidate =
-          shortText
-            ? shortText + " " + sentence
-            : sentence;
-
-        if (
-          candidate.length <=
-          MAX_REPLY_CHARS
-        ) {
-          shortText = candidate;
-        } else {
-          break;
-        }
-      }
-
-      if (shortText) {
-        text = shortText;
-      }
+      text = sentenceMatches
+        .slice(-2)
+        .map(function (sentence) {
+          return sentence.trim();
+        })
+        .filter(Boolean)
+        .join(" ");
     }
 
-    /*
-     * Absolute hard cap.
-     */
-    if (
-      text.length >
-      MAX_REPLY_CHARS
-    ) {
-      text =
-        text
-          .slice(
-            0,
-            MAX_REPLY_CHARS - 3
-          )
-          .replace(/\s+\S*$/, "")
-          .trim() + "...";
-    }
+    const words = text.split(/\s+/).filter(Boolean);
 
-    /*
-     * Final absolute protection.
-     */
-    if (
-      text.length >
-      MAX_REPLY_CHARS
-    ) {
-      text =
-        text.slice(
-          0,
-          MAX_REPLY_CHARS
-        );
+    if (words.length > 24) {
+      text = words.slice(-24).join(" ");
     }
 
     return text;
@@ -2038,6 +2017,10 @@
   }
 
   function remainingAsks() {
+    if (!USAGE_LIMIT_ENABLED) {
+      return MAX_ASKS;
+    }
+
     return Math.max(
       0,
       MAX_ASKS - getQuota().count
@@ -2135,6 +2118,28 @@
   }
 
   function renderQuota() {
+    if (!USAGE_LIMIT_ENABLED) {
+      limitReached = false;
+
+      if (quotaPills) {
+        quotaPills.hidden = true;
+      }
+
+      if (quotaNote) {
+        quotaNote.hidden = true;
+      }
+
+      return;
+    }
+
+    if (quotaPills) {
+      quotaPills.hidden = false;
+    }
+
+    if (quotaNote) {
+      quotaNote.hidden = false;
+    }
+
     const left = remainingAsks();
 
     limitReached = left <= 0;
@@ -2360,8 +2365,7 @@
 
     row.innerHTML =
       "<div class='bot-bubble'>" +
-      "<strong>AI Scent Finder</strong>" +
-      "<br><br>" +
+      "<strong class='ai-reply-label'>AI Scent Finder</strong>" +
       "<div class='ai-short-reply'>" +
       escapeHtml(shortReply) +
       "</div>" +
@@ -2594,8 +2598,42 @@
         source.image_url ||
         source.imageUrl ||
         source.featured_image ||
+        "",
+
+      type:
+        source.type ||
+        source.product_type ||
+        source.productType ||
         ""
     };
+  }
+
+  function genderLabel(type) {
+    const value = String(type || "").toLowerCase();
+
+    if (!value) {
+      return "";
+    }
+
+    if (value.indexOf("unisex") !== -1) {
+      return "Unisex";
+    }
+
+    if (
+      value.indexOf("women") !== -1 ||
+      value.indexOf("woman") !== -1
+    ) {
+      return "For women";
+    }
+
+    if (
+      value.indexOf("men") !== -1 ||
+      value.indexOf("man") !== -1
+    ) {
+      return "For men";
+    }
+
+    return "";
   }
 
   function collectProductItems(
@@ -2969,6 +3007,30 @@
    * ---------------------------------------------------------
    */
 
+  function firstVariantId(product) {
+    const variants =
+      product && product.variants;
+
+    if (
+      !variants ||
+      !variants.length
+    ) {
+      return product && product.variant_id
+        ? String(product.variant_id)
+        : "";
+    }
+
+    const available = variants.find(function (variant) {
+      return variant && variant.available;
+    });
+
+    const chosen = available || variants[0];
+
+    return chosen && chosen.id
+      ? String(chosen.id)
+      : "";
+  }
+
   function loadShopifyProduct(
     productData
   ) {
@@ -3052,7 +3114,15 @@
             product.url ||
             candidate.url ||
             "/products/" +
-              safeHandle
+              safeHandle,
+
+          type:
+            product.type ||
+            candidate.type ||
+            "",
+
+          variant_id:
+            firstVariantId(product)
         };
       })
       .catch(function () {
@@ -3077,7 +3147,13 @@
           url:
             candidate.url ||
             "/products/" +
-              safeHandle
+              safeHandle,
+
+          type:
+            candidate.type || "",
+
+          variant_id:
+            candidate.variant_id || ""
         };
       });
   }
@@ -3145,7 +3221,6 @@
 
   function productCardHtml(
     product,
-    label,
     cardIndex
   ) {
     if (
@@ -3198,30 +3273,25 @@
 
       "<div class='product-info'>" +
 
-      "<div class='product-label'>" +
-      escapeHtml(
-        label || "Recommended"
-      ) +
-      "</div>" +
-
-      "<h3 class='product-title'>" +
-      escapeHtml(
-        product.title ||
-          "Your fragrance match"
-      ) +
-      "</h3>" +
-
       (
-        product.description
+        genderLabel(product.type)
           ? (
-              "<p class='product-description'>" +
+              "<div class='product-head'>" +
+              "<div class='product-gender'>" +
               escapeHtml(
-                product.description
+                genderLabel(product.type)
               ) +
-              "</p>"
+              "</div>" +
+              "</div>"
             )
           : ""
       ) +
+
+      "<h3 class='product-title'>" +
+      escapeHtml(
+        product.title || ""
+      ) +
+      "</h3>" +
 
       (
         product.price
@@ -3235,21 +3305,19 @@
           : ""
       ) +
 
-      (
-        product.url
-          ? (
-              "<a " +
-              "class='product-link' " +
-              "href='" +
-              escapeHtml(
-                product.url
-              ) +
-              "'>" +
-              "Discover scent →" +
-              "</a>"
-            )
-          : ""
+      "<button " +
+      "type='button' " +
+      "class='product-link add-to-cart' " +
+      "data-handle='" +
+      escapeHtml(product.handle) +
+      "' " +
+      "data-variant-id='" +
+      escapeHtml(
+        product.variant_id || ""
       ) +
+      "'>" +
+      "Add to cart" +
+      "</button>" +
 
       "</div>" +
 
@@ -3283,7 +3351,6 @@
       row.innerHTML =
         productCardHtml(
           limited[0],
-          "Closest match",
           0
         );
     } else {
@@ -3298,7 +3365,6 @@
           html +=
             productCardHtml(
               product,
-              "Recommended",
               index
             );
         }
@@ -3313,6 +3379,188 @@
     chatThread.appendChild(row);
 
     scrollThread();
+  }
+
+  function shopRoot() {
+    return (
+      window.Shopify &&
+      Shopify.routes &&
+      Shopify.routes.root
+    ) || "/";
+  }
+
+  function openCartDrawer() {
+    const drawer =
+      document.querySelector("cart-drawer") ||
+      document.getElementById("CartDrawer");
+
+    if (!drawer) {
+      return;
+    }
+
+    if (typeof drawer.show === "function") {
+      drawer.show();
+      return;
+    }
+
+    drawer.removeAttribute("hidden");
+    drawer.setAttribute("open", "");
+    drawer.classList.add("is-open", "active");
+  }
+
+  function publishCartUpdate(cart) {
+    document.dispatchEvent(
+      new CustomEvent("cart:updated", {
+        detail: { cart: cart }
+      })
+    );
+
+    if (
+      window.FoxTheme &&
+      FoxTheme.pubsub &&
+      FoxTheme.pubsub.PUB_SUB_EVENTS
+    ) {
+      FoxTheme.pubsub.publish(
+        FoxTheme.pubsub.PUB_SUB_EVENTS.cartUpdate,
+        { cart: cart }
+      );
+    }
+  }
+
+  function variantIdForHandle(handle) {
+    return fetch(
+      shopRoot() +
+        "products/" +
+        encodeURIComponent(handle) +
+        ".js",
+      {
+        headers: {
+          Accept: "application/json"
+        },
+        credentials: "same-origin"
+      }
+    )
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("product_not_found");
+        }
+
+        return response.json();
+      })
+      .then(function (product) {
+        return firstVariantId(product);
+      });
+  }
+
+  function addVariantToCart(variantId) {
+    const sections = [];
+
+    document.documentElement.dispatchEvent(
+      new CustomEvent("cart:grouped-sections", {
+        bubbles: true,
+        detail: { sections: sections }
+      })
+    );
+
+    const addUrl =
+      (window.FoxTheme &&
+        FoxTheme.routes &&
+        FoxTheme.routes.cart_add_url) ||
+      shopRoot() + "cart/add.js";
+
+    const cartUrl =
+      (window.FoxTheme &&
+        FoxTheme.routes &&
+        FoxTheme.routes.cart_url) ||
+      shopRoot() + "cart.js";
+
+    return fetch(addUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        items: [
+          {
+            id: Number(variantId),
+            quantity: 1
+          }
+        ],
+        sections: sections,
+        section_url: window.location.pathname,
+        sections_url: window.location.pathname
+      })
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (added) {
+        if (added && added.status) {
+          throw new Error(
+            added.description || "cart_add_failed"
+          );
+        }
+
+        return fetch(cartUrl, {
+          headers: {
+            Accept: "application/json"
+          },
+          credentials: "same-origin"
+        })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (cart) {
+            cart.sections = added && added.sections;
+            publishCartUpdate(cart);
+            openCartDrawer();
+          });
+      });
+  }
+
+  function addToCartFromCard(button) {
+    if (
+      !button ||
+      button.disabled
+    ) {
+      return;
+    }
+
+    const handle = button.getAttribute("data-handle");
+    const knownId = button.getAttribute("data-variant-id");
+
+    button.disabled = true;
+    button.textContent = "Adding...";
+
+    const ready = knownId
+      ? Promise.resolve(knownId)
+      : variantIdForHandle(handle);
+
+    ready
+      .then(function (variantId) {
+        if (!variantId) {
+          throw new Error("missing_variant");
+        }
+
+        button.setAttribute(
+          "data-variant-id",
+          variantId
+        );
+
+        return addVariantToCart(variantId);
+      })
+      .then(function () {
+        button.textContent = "Added";
+      })
+      .catch(function () {
+        button.textContent = "Try again";
+      })
+      .finally(function () {
+        button.disabled = false;
+      });
   }
 
   /*
@@ -3334,17 +3582,67 @@
    * 3. Previous recommended products
    * 4. Shopify search using user's actual query
    * 5. Shopify search using AI reply
-   * 6. Shopify catalog fallback
+   * Product cards come from the API match.
+   * An exact ingredient or best-seller answer never
+   * falls back to a different product.
    */
+  function readyToShow(list) {
+    return (
+      list.length &&
+      list.every(function (product) {
+        return (
+          product &&
+          product.title &&
+          product.image
+        );
+      })
+    );
+  }
+
   async function discoverProducts(
     data,
     originalQuery
   ) {
+    if (
+      data &&
+      data.exact_match === true
+    ) {
+      const direct =
+        extractProducts(data);
+
+      if (!direct.length) {
+        return [];
+      }
+
+      if (readyToShow(direct)) {
+        return direct.slice(
+          0,
+          MAX_DISPLAY_PRODUCTS
+        );
+      }
+
+      const hydratedExact =
+        await hydrateProducts(
+          direct
+        );
+
+      return hydratedExact.length
+        ? hydratedExact
+        : [];
+    }
+
     /*
      * 1. Direct API products.
      */
     let products =
       extractProducts(data);
+
+    if (readyToShow(products)) {
+      return products.slice(
+        0,
+        MAX_DISPLAY_PRODUCTS
+      );
+    }
 
     if (products.length) {
       const hydrated =
@@ -3358,12 +3656,16 @@
     }
 
     /*
-     * 2. Previous products.
-     *
-     * This makes sure "tell me more", "what about
-     * another one", "yes", etc. still have cards.
+     * 2. Previous products only for a follow-up
+     * about a product already on screen.
      */
+    const followUp =
+      /\b(this|that|it|these|those|another one|the one|more about)\b/i.test(
+        originalQuery || ""
+      );
+
     if (
+      followUp &&
       previousHandles.length
     ) {
       const previousProducts =
@@ -3415,54 +3717,6 @@
           return hydrated;
         }
       }
-    }
-
-    /*
-     * 4. Search Shopify using the AI reply.
-     */
-    const reply =
-      data &&
-      typeof data.reply === "string"
-        ? data.reply
-        : "";
-
-    if (reply.trim()) {
-      products =
-        await searchShopifyProducts(
-          reply
-        );
-
-      if (products.length) {
-        const hydrated =
-          await hydrateProducts(
-            products
-          );
-
-        if (hydrated.length) {
-          return hydrated;
-        }
-      }
-    }
-
-    /*
-     * 5. FINAL FALLBACK.
-     *
-     * If nothing matched, still show Shopify products.
-     */
-    products =
-      await loadCatalogFallbackProducts();
-
-    if (products.length) {
-      const hydrated =
-        await hydrateProducts(
-          products
-        );
-
-      if (hydrated.length) {
-        return hydrated;
-      }
-
-      return products;
     }
 
     return [];
@@ -3604,13 +3858,8 @@
 
     showStep(3);
 
-    window.setTimeout(
-      function () {
-        askAssistant(
-          selectedQuery
-        );
-      },
-      400
+    askAssistant(
+      selectedQuery
     );
   }
 
@@ -3628,18 +3877,6 @@
       !text ||
       isBusy
     ) {
-      return;
-    }
-
-    if (
-      remainingAsks() <= 0
-    ) {
-      forceLimit();
-
-      appendLimitCard(
-        DAILY_LIMIT_MESSAGE
-      );
-
       return;
     }
 
@@ -3731,13 +3968,9 @@
         data.error ===
           "rate_limit_exceeded"
       ) {
-        syncRemainingFromServer(0);
-
-        forceLimit();
-
-        appendLimitCard(
+        appendBotMessage(
           data.message ||
-            DAILY_LIMIT_MESSAGE
+            "I couldn't check the collection right now. Please try again."
         );
 
         return;
@@ -3991,6 +4224,24 @@
     );
   }
 
+  chatThread.addEventListener(
+    "click",
+    function (event) {
+      const button =
+        event.target.closest(
+          ".add-to-cart"
+        );
+
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      addToCartFromCard(button);
+    }
+  );
+
   chatSubmit.addEventListener(
     "click",
     handleChatSubmit
@@ -4083,6 +4334,17 @@
 
   setChatEnabled(true);
 
+  fetch(AI_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      warmup: true
+    })
+  }).catch(function () {});
+
   showStep(1);
 
 })();
@@ -4136,50 +4398,50 @@
       "type": "text",
       "id": "option1_label",
       "label": "Option 1 — button label",
-      "default": "A scent with amber notes"
+      "default": "What do you recommend for today?"
     },
     {
       "type": "text",
       "id": "option1_query",
       "label": "Option 1 — AI query",
-      "default": "A scent with amber notes",
+      "default": "What do you recommend for today?",
       "info": "The exact text sent to the AI when this button is clicked."
     },
     {
       "type": "text",
       "id": "option2_label",
       "label": "Option 2 — button label",
-      "default": "A perfume to wear to weekend brunch"
+      "default": "Which scent has notes of amber?"
     },
     {
       "type": "text",
       "id": "option2_query",
       "label": "Option 2 — AI query",
-      "default": "A perfume to wear to weekend brunch"
+      "default": "Which scent has notes of amber?"
     },
     {
       "type": "text",
       "id": "option3_label",
       "label": "Option 3 — button label",
-      "default": "Smell like Tom Ford's Tobacco Vanille"
+      "default": "What is the top seller for the season?"
     },
     {
       "type": "text",
       "id": "option3_query",
       "label": "Option 3 — AI query",
-      "default": "Smell like Tom Ford's Tobacco Vanille"
+      "default": "What is the top seller for the season?"
     },
     {
       "type": "text",
       "id": "option4_label",
       "label": "Option 4 — button label",
-      "default": "Perfume that makes me feel sexy"
+      "default": "What should I wear tonight?"
     },
     {
       "type": "text",
       "id": "option4_query",
       "label": "Option 4 — AI query",
-      "default": "Perfume that makes me feel sexy"
+      "default": "What should I wear tonight?"
     },
     {
       "type": "header",
@@ -4213,16 +4475,6 @@
       "label": "AI API endpoint",
       "default": "https://shopify-ai-gateway-rosy.vercel.app/api/recommend",
       "info": "Your Vercel gateway URL. Keep this as the production endpoint."
-    },
-    {
-      "type": "range",
-      "id": "max_asks",
-      "min": 1,
-      "max": 20,
-      "step": 1,
-      "unit": "x",
-      "label": "Max free messages per day",
-      "default": 20
     }
   ],
   "presets": [
