@@ -3311,24 +3311,25 @@ function extractIngredientQuery(text) {
   }
 
   const explicit =
-    /\b(ingredients?|contains|containing|made with|notes?|accords?|having)\b/i.test(
+    /\b(ingredients?|contains|containing|made with|notes?|accords?|having|like|similar)\b/i.test(
       value
     ) || /\bwith\b/i.test(value);
 
-  const onlyTerm = terms.length === 1 ? terms[0] : "";
-  const knownNote =
-    Boolean(onlyTerm) &&
-    (SCENT_TERMS.has(onlyTerm) || Boolean(NOTE_FAMILIES[onlyTerm]));
+  const notes = terms.filter((term) => isKnownNote(term));
 
-  const shortLookup =
-    knownNote &&
-    value.split(/\s+/).length <= 4;
-
-  if (!explicit && !shortLookup) {
-    return null;
+  if (explicit && notes.length) {
+    return notes;
   }
 
-  return terms;
+  if (explicit) {
+    return terms;
+  }
+
+  if (notes.length === 1 && value.split(/\s+/).length <= 4) {
+    return notes;
+  }
+
+  return null;
 }
 
 const NOTE_FAMILIES = {
@@ -3343,7 +3344,157 @@ const NOTE_FAMILIES = {
   vanilla: ["vanilla"],
   oud: ["oud", "agarwood"],
   sandalwood: ["sandalwood"],
+  tonka: ["tonka"],
 };
+
+function isKnownNote(term) {
+  const word = String(term || "").toLowerCase();
+
+  if (!word) {
+    return false;
+  }
+
+  if (NOTE_FAMILIES[word]) {
+    return true;
+  }
+
+  return Object.values(NOTE_FAMILIES).some((list) => list.includes(word));
+}
+
+function normalizeUnderstanding(data) {
+  const kind = String(data?.kind || "").toLowerCase();
+  const allowed = new Set([
+    "note",
+    "product",
+    "bestseller",
+    "discount",
+    "shipping",
+    "returns",
+    "category",
+    "chat",
+  ]);
+
+  if (!allowed.has(kind)) {
+    return null;
+  }
+
+  const terms = (Array.isArray(data?.terms) ? data.terms : [])
+    .flatMap((term) => String(term || "").toLowerCase().split(/[^a-z0-9]+/))
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 3 && term.length <= 24 && !SEARCH_STOPWORDS.has(term))
+    .slice(0, 3);
+  const rank = Number(data?.rank);
+
+  return {
+    kind,
+    terms: [...new Set(terms)],
+    rank: rank >= 1 && rank <= 12 ? rank : null,
+    season: data?.season === true,
+  };
+}
+
+function noteTermsFromModel(terms) {
+  const known = (terms || []).filter((term) => isKnownNote(term));
+
+  return (known.length ? known : terms || []).slice(0, 3);
+}
+
+function routeTextFor(understood, text) {
+  if (!understood || understood.kind === "chat") {
+    return text;
+  }
+
+  if (understood.kind === "note" && understood.terms.length) {
+    const notes = noteTermsFromModel(understood.terms);
+
+    return notes.length ? `with ${notes.join(" ")}` : text;
+  }
+
+  if (understood.kind === "bestseller") {
+    if (understood.season) {
+      return "what is the top seller this season";
+    }
+
+    if (understood.rank === 2) {
+      return "what is the second best seller";
+    }
+
+    if (understood.rank === 3) {
+      return "what is the third best seller";
+    }
+
+    if (understood.rank > 1) {
+      return `what is the number ${understood.rank} best seller`;
+    }
+
+    return "what is the best seller";
+  }
+
+  if (understood.kind === "discount") {
+    return text;
+  }
+
+  if (
+    (understood.kind === "product" || understood.kind === "category") &&
+    understood.terms.length
+  ) {
+    return understood.terms.join(" ");
+  }
+
+  if (understood.kind === "shipping") {
+    return "what is the shipping policy";
+  }
+
+  if (understood.kind === "returns") {
+    return "what is the return policy";
+  }
+
+  return text;
+}
+
+async function understandQuestion(text) {
+  if (!process.env.OPENAI_API_KEY) {
+    return null;
+  }
+
+  try {
+    const openai = getOpenAIClient();
+    const completion = await openai.chat.completions.create(
+      {
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 80,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: [
+              "Classify one fragrance-shop question. Do not answer it.",
+              'Return JSON only: {"kind":"note|product|bestseller|discount|shipping|returns|category|chat","terms":[],"rank":null,"season":false}',
+              "note: a smell, ingredient, or something like a note. terms are single note words. Tonka bean becomes tonka.",
+              "product: they named a product. terms are the name words.",
+              "bestseller: top or best selling. rank is 1 unless they ask for 2nd or 3rd. season true only for this season.",
+              "discount: sale, coupon, code, or how much off.",
+              "category: men, women, unisex, mist, splash, or candle.",
+              "chat: greeting or anything else.",
+              "Never invent a product or a code.",
+            ].join(" "),
+          },
+          { role: "user", content: String(text || "").slice(0, 500) },
+        ],
+      },
+      { timeout: 1600 }
+    );
+
+    return normalizeUnderstanding(
+      extractJson(completion.choices[0]?.message?.content)
+    );
+  } catch (err) {
+    console.warn("Question understand failed:", err?.message || err);
+
+    return null;
+  }
+}
 
 function noteEvidence(product) {
   return [
@@ -3848,6 +3999,16 @@ function replyIsFaithful(fact, spoken, products, history) {
   const percent = source.match(/(\d+)%/);
 
   if (percent && !say.includes(`${percent[1]}%`)) {
+    return false;
+  }
+
+  if (!/best seller|top seller/i.test(source) && /best seller|top seller/i.test(say)) {
+    return false;
+  }
+
+  const noted = source.match(/clearest\s+([a-z]+)/i);
+
+  if (noted && !new RegExp("\\b" + noted[1] + "\\b", "i").test(say)) {
     return false;
   }
 
@@ -6620,10 +6781,17 @@ module.exports = async (
   }
 
   try {
+    const regexKnown =
+      isBestsellerQuestion(text) ||
+      extractIngredientQuery(text) ||
+      isDiscountQuestion(text);
+    const understood = regexKnown ? null : await understandQuestion(text);
+    const routeText = routeTextFor(understood, text);
+
     await loadBestsellerProducts().catch(() => []);
 
-    if (isBestsellerQuestion(text)) {
-      const seasonal = isSeasonSalesQuestion(text);
+    if (isBestsellerQuestion(routeText)) {
+      const seasonal = isSeasonSalesQuestion(routeText);
       const since = seasonal ? currentSeasonStart() : "2015-01-01";
       let ranked = await loadBestsellerProducts(since).catch(() => []);
       const fromOrders = ranked.length > 0;
@@ -6640,7 +6808,7 @@ module.exports = async (
       }
 
       const payload = await shapeReply(
-        buildFactualBestsellerReply(text, ranked, fromOrders, seasonal)
+        buildFactualBestsellerReply(routeText, ranked, fromOrders, seasonal)
       );
 
       return res
@@ -6674,7 +6842,7 @@ module.exports = async (
     }
 
     const ingredientTerms =
-      extractIngredientQuery(text);
+      extractIngredientQuery(routeText);
 
     if (ingredientTerms) {
       const catalog =
@@ -6727,7 +6895,7 @@ module.exports = async (
 
     const classification =
       classifyIntentHeuristic(
-        text,
+        routeText,
         previousHandles
       );
 
@@ -6791,7 +6959,8 @@ module.exports = async (
         "discount" ||
       isDiscountQuestion(
         text
-      )
+      ) ||
+      understood?.kind === "discount"
     ) {
       const catalog =
         await loadFullCatalog()
@@ -6857,10 +7026,10 @@ module.exports = async (
     }
 
     return await sendFast(
-      buildFastRecommendReply(
-        text,
-        catalog
-      )
+        buildFastRecommendReply(
+          routeText,
+          catalog
+        )
     );
   } catch (err) {
     if (USAGE_LIMIT_ENABLED) {
@@ -6951,6 +7120,8 @@ module.exports._test = {
   productMatchesTerm,
   isBestsellerQuestion,
   extractIngredientQuery,
+  routeTextFor,
+  normalizeUnderstanding,
   searchByIngredients,
   buildFactualIngredientReply,
   buildFactualBestsellerReply,

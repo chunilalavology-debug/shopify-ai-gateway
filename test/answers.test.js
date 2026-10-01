@@ -158,6 +158,19 @@ async function run() {
   assert.strictEqual(topSellerReply.products.length, 1);
   assert.strictEqual(topSellerReply.products[0].handle, "vanilla-harmony");
   assert.match(topSellerReply.reply, /Vanilla Harmony is our best seller/i);
+  assert.deepStrictEqual(
+    t.extractIngredientQuery("I want something like Tonka Bean"),
+    ["tonka"]
+  );
+  assert.strictEqual(
+    t.extractIngredientQuery(
+      t.routeTextFor(
+        t.normalizeUnderstanding({ kind: "note", terms: ["Tonka Bean"] }),
+        "mujhe tonka jaisa kuch chahiye"
+      )
+    )?.[0],
+    "tonka"
+  );
   assert.doesNotMatch(topSellerReply.reply, /Bliss Apple|Smoky Velvet/i);
   const couponForShown = t.buildFactualDiscountReply({
     text: "is there a coupon code for this product?",
@@ -405,6 +418,12 @@ async function run() {
     bestEnglish.body.products[0].handle
   );
   console.log(season.body.reply);
+
+  const tonka = await post("I want something like Tonka Bean");
+  assert.ok(tonka.body.products.length > 0, tonka.body.reply);
+  assert.match(tonka.body.reply, /tonka/i);
+  assert.doesNotMatch(tonka.body.reply, /best seller|top seller|fresh, woody/i);
+  console.log(tonka.body.reply);
 
   console.log("OK — ingredient and best-seller answers matched the live catalog");
 }
