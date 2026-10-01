@@ -2443,6 +2443,29 @@ function applicableCouponCodes(coupons, product) {
     .slice(0, MAX_COUPONS_SHOWN);
 }
 
+function offerBenefit(item) {
+  const detail = String(item?.detail || "");
+  const code = String(item?.code || "");
+
+  if (/free\s*shipping/i.test(detail) || /^freeship$/i.test(code)) {
+    return "free shipping";
+  }
+
+  const percent = detail.match(/(\d+(?:\.\d+)?)\s*%/);
+
+  if (percent) {
+    return `${percent[1]}% off`;
+  }
+
+  return "";
+}
+
+function asksDiscountAmount(text) {
+  return /\b(how much|kitna|kitne|which products?|kis product|what discount)\b/i.test(
+    String(text || "")
+  );
+}
+
 function couponCodeList(codes) {
   const names = codes.map((item) => item.code).filter(Boolean);
 
@@ -2532,6 +2555,10 @@ async function loadPublishedCoupons() {
   const merged = [...fromEnv];
 
   fromShopify.forEach((item) => {
+    if (item.code && !isPublicCouponCode(item)) {
+      return;
+    }
+
     if (item.code && seen.has(item.code)) {
       return;
     }
@@ -2732,17 +2759,9 @@ function buildFactualDiscountReply({
         : null
     );
 
-  const published =
-    (
-      Array.isArray(
-        coupons
-      )
-        ? coupons
-        : []
-    ).slice(
-      0,
-      MAX_COUPONS_SHOWN
-    );
+  const published = (Array.isArray(coupons) ? coupons : [])
+    .filter((item) => !item?.code || isPublicCouponCode(item))
+    .slice(0, MAX_COUPONS_SHOWN);
 
   const saleItems = (catalog || [])
     .filter(productHasSale)
@@ -2750,12 +2769,53 @@ function buildFactualDiscountReply({
   const codeItems = published.filter((item) => item.code);
   const automatic = published.filter((item) => !item.code && item.detail);
   const codes = codeItems
-    .map((item) => item.detail ? `${item.code} (${item.detail})` : item.code)
-    .join("; ");
+    .map((item) => {
+      const benefit = offerBenefit(item);
+
+      return benefit ? `${item.code} for ${benefit}` : item.code;
+    })
+    .join(" or ");
+  const automaticBenefit = automatic.map(offerBenefit).find(Boolean);
   const offer = [
     codes ? `Code ${codes}.` : "",
-    automatic[0] ? `Offer: ${automatic[0].detail}.` : "",
+    automaticBenefit ? `Automatic ${automaticBenefit}.` : "",
   ].filter(Boolean).join(" ");
+
+  if (asksDiscountAmount(text)) {
+    const matching = applicableCouponCodes(published, product);
+    const onlyShipping =
+      matching.length > 0 &&
+      matching.every((item) => offerBenefit(item) === "free shipping");
+
+    if (onlyShipping) {
+      return talk(
+        `${couponCodeList(matching)} is free shipping on the order, not a percent off one product.`,
+        []
+      );
+    }
+
+    if (matching.length) {
+      const described = matching
+        .slice(0, 2)
+        .map((item) => {
+          const benefit = offerBenefit(item);
+
+          return benefit ? `${item.code} for ${benefit}` : item.code;
+        })
+        .join(", and ");
+
+      return talk(`Use ${described}.`, []);
+    }
+
+    if (saleItems.length) {
+      return talk(
+        "These are already marked down. There is no public coupon code.",
+        saleItems.map((item) => cardFields(item))
+      );
+    }
+
+    return talk("There is no public coupon with a set percent off.", []);
+  }
 
   if (asksForCoupon(text)) {
     const matching = applicableCouponCodes(published, product);
@@ -2765,14 +2825,23 @@ function buildFactualDiscountReply({
       : saleItems.map((item) => cardFields(item));
 
     if (listed && product) {
+      const benefit = offerBenefit(matching[0]);
+
       return talk(
-        `Yes. Use ${listed} on ${product.title}.`,
+        benefit
+          ? `Yes. Use ${listed} on ${product.title} for ${benefit}.`
+          : `Yes. Use ${listed} on ${product.title}.`,
         cards
       );
     }
 
     if (listed) {
-      return talk(`Yes. Use ${listed}.`, []);
+      const benefit = offerBenefit(matching[0]);
+
+      return talk(
+        benefit ? `Yes. Use ${listed} for ${benefit}.` : `Yes. Use ${listed}.`,
+        []
+      );
     }
 
     if (product && productHasSale(product)) {
@@ -3765,6 +3834,20 @@ function replyIsFaithful(fact, spoken, products, history) {
   }
 
   if (deniesSale && /\byes\b/i.test(say)) {
+    return false;
+  }
+
+  if (/\b[A-F0-9]{12,}\b/i.test(say)) {
+    return false;
+  }
+
+  if (/free shipping/i.test(source) && !/shipping/i.test(say)) {
+    return false;
+  }
+
+  const percent = source.match(/(\d+)%/);
+
+  if (percent && !say.includes(`${percent[1]}%`)) {
     return false;
   }
 

@@ -180,6 +180,22 @@ async function run() {
   assert.match(noCoupon.reply, /no coupon code/i);
   assert.match(noCoupon.reply, /Vanilla Harmony/i);
   assert.doesNotMatch(noCoupon.reply, /SAVE10/i);
+  const hiddenCode = t.buildFactualDiscountReply({
+    text: "for which product and how much discount I will get",
+    catalog: [],
+    previousHandles: [],
+    coupons: [
+      { code: "FREESHIP", detail: "Free shipping on all products" },
+      {
+        code: "B95D0C63E6E5363EE22DFCB64AC7A22B",
+        detail: "5% off one-time purchase products • One use per customer",
+      },
+    ],
+  });
+  assert.match(hiddenCode.reply, /FREESHIP/i);
+  assert.match(hiddenCode.reply, /free shipping/i);
+  assert.doesNotMatch(hiddenCode.reply, /B95D0C63E6E5363EE22DFCB64AC7A22B/);
+  assert.doesNotMatch(hiddenCode.reply, /5%/);
   const products = [
     { title: "Vanilla Harmony", handle: "vanilla-harmony" },
     { title: "Bliss Apple", handle: "bliss-apple" },
