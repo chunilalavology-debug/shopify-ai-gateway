@@ -471,19 +471,24 @@
     }
   }
 
-  .scent-finder-app .landing-inner .sf-kicker {
+  .scent-finder-app .landing-kicker {
     display: inline-flex;
     align-items: center;
 
     margin: 0 0 18px;
-    padding: 7px 12px;
+    padding: 7px 14px;
 
     border: 1px solid #f6e4df;
     border-radius: 999px;
 
     background: rgba(255, 255, 255, 0.72);
+    color: var(--sf-coral);
 
-    letter-spacing: 0.14em;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-transform: none;
   }
 
   .scent-finder-app .landing-inner .landing-title,
@@ -923,6 +928,14 @@
   .scent-finder-app .chat-input input::placeholder {
     color: #8a8178;
     opacity: 1;
+  }
+
+  .scent-finder-app .landing-input input::placeholder,
+  .scent-finder-app .email-input input::placeholder {
+    color: #cfc6c0;
+    font-size: 13px;
+    font-weight: 400;
+    opacity: 0.72;
   }
 
   .scent-finder-app .coral-arrow {
@@ -2105,8 +2118,8 @@
           <span></span>
         </div>
 
-        <p class="sf-kicker">
-          Personal scent concierge
+        <p class="landing-kicker">
+          Let's find your scent
         </p>
 
         <h1 class="landing-title">
@@ -2286,10 +2299,6 @@
             />
           </svg>
         </div>
-
-        <p class="sf-kicker">
-          Step 2 of 3
-        </p>
 
         <h2 class="email-title">
           {{ section.settings.step2_heading_prefix | default: 'Lets help you discover ' }}
@@ -3468,6 +3477,9 @@
           ? source.match_terms
           : [],
 
+      suggested:
+        source.suggested === true,
+
       inspired_by:
         source.inspired_by ||
         inspiredByName(
@@ -4067,7 +4079,10 @@
           match_terms:
             Array.isArray(candidate.match_terms)
               ? candidate.match_terms
-              : []
+              : [],
+
+          suggested:
+            candidate.suggested === true
         };
       })
       .catch(function () {
@@ -4119,7 +4134,10 @@
           match_terms:
             Array.isArray(candidate.match_terms)
               ? candidate.match_terms
-              : []
+              : [],
+
+          suggested:
+            candidate.suggested === true
         };
       });
   }
@@ -4697,6 +4715,10 @@
 
     return (products || []).filter(
       function (product) {
+        if (product && product.suggested === true) {
+          return true;
+        }
+
         return matchCopy(
           product,
           query
@@ -5461,7 +5483,7 @@
       ) {
         appendBotMessage(
           data.message ||
-            "Nothing matched that. If you'd like, I can suggest something."
+            "I'm still here. Ask me once more and I'll pick a scent with you."
         );
 
         return;
@@ -5488,7 +5510,7 @@
       if (!response.ok) {
         appendBotMessage(
           data.message ||
-            "Nothing matched that. If you'd like, I can suggest something."
+            "I'm still here. Ask me once more and I'll pick a scent with you."
         );
 
         return;
@@ -5596,7 +5618,7 @@
       hideTyping();
 
       appendBotMessage(
-        "Nothing matched that. If you'd like, I can suggest something."
+        "I'm still here. Ask me once more and I'll pick a scent with you."
       );
     } finally {
       isBusy = false;

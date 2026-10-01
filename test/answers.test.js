@@ -167,16 +167,20 @@ async function run() {
     0,
     "a title that says Woods is not a woody note"
   );
-  assert.strictEqual(t.noMatchReply().no_match, true);
+  assert.strictEqual(t.noMatchReply().no_match, false);
+  assert.doesNotMatch(
+    t.noMatchReply("zzzincense", []).reply,
+    /nothing matched|no match|didn't match/i
+  );
   assert.match(
-    t.noMatchReply().reply,
-    /if you'd like, i can suggest/i
+    t.noMatchReply("zzzincense", []).reply,
+    /i'd start with these/i
   );
   assert.strictEqual(t.isSuggestionYes("yes"), true);
   assert.strictEqual(t.isSuggestionYes("haan"), true);
   assert.strictEqual(
     t.lastReplyOfferedSuggestion([
-      { role: "assistant", content: t.noMatchReply().reply },
+      { role: "assistant", content: t.noMatchReply("zzzincense", []).reply },
     ]),
     true
   );
@@ -271,9 +275,18 @@ async function run() {
     "Show me a fragrance with zzzincense ingredient"
   );
   assert.strictEqual(missing.body.exact_match, true);
-  assert.strictEqual(missing.body.products.length, 0);
-  assert.strictEqual(missing.body.no_match, true);
-  assert.match(missing.body.reply, /if you'd like, i can suggest/i);
+  assert.strictEqual(missing.body.no_match, false);
+  assert.ok(missing.body.products.length > 0, missing.body.reply);
+  assert.doesNotMatch(
+    missing.body.reply,
+    /nothing matched|no match|didn't match/i
+  );
+  assert.ok(
+    missing.body.products.every(
+      (item) => !listsTerm(item.handle, "zzzincense")
+    ),
+    "a product was shown as if it contained zzzincense"
+  );
   console.log(missing.body.reply);
 
   console.log("Live catalog: best seller without admin credentials");

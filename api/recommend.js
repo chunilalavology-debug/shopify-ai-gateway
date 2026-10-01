@@ -2547,203 +2547,68 @@ function buildFactualDiscountReply({
   const hasCoupons =
     published.length > 0;
 
-  if (!product) {
-    return {
-      reply: hasCoupons
-        ? "Which product are you asking about? Once you tell me the name, I can check its exact price, discount, and stock for you."
-        : "Which product are you asking about? Tell me the name and I'll check its current price and availability for you.",
-
-      intent:
-        "clarify",
-
-      title: "",
-
-      handle: "",
-
-      bg_color:
-        "#c9e2e8",
-    };
-  }
+  const saleItems = (catalog || [])
+    .filter(productHasSale)
+    .slice(0, 4);
+  const codes = published
+    .map((item) => `${item.code} (${item.detail})`)
+    .join("; ");
 
   if (product) {
-    const onSale =
-      productHasSale(
-        product
+    const onSale = productHasSale(product);
+
+    if (onSale && hasCoupons) {
+      return talk(
+        `Yes. ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). Coupon code ${codes}.`,
+        [cardFields(product)]
       );
-
-    const stockBit =
-      product.available
-        ? "In stock"
-        : "Out of stock";
-
-    if (
-      onSale &&
-      hasCoupons
-    ) {
-      const codes =
-        published
-          .map(
-            (item) =>
-              `${item.code} (${item.detail})`
-          )
-          .join("; ");
-
-      return {
-        reply: `Yes — ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). ${stockBit}. You can also use coupon code(s): ${codes}.`,
-
-        intent:
-          "recommend",
-
-        title:
-          product.title,
-
-        handle:
-          product.handle,
-
-        bg_color:
-          "#c4a07a",
-      };
     }
 
     if (onSale) {
-      return {
-        reply: `Yes — ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). ${stockBit}. No additional coupon code needed.`,
-
-        intent:
-          "recommend",
-
-        title:
-          product.title,
-
-        handle:
-          product.handle,
-
-        bg_color:
-          "#c4a07a",
-      };
+      return talk(
+        `Yes. ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). No published coupon code.`,
+        [cardFields(product)]
+      );
     }
 
     if (hasCoupons) {
-      const codes =
-        published
-          .map(
-            (item) =>
-              `${item.code} (${item.detail})`
-          )
-          .join("; ");
-
-      return {
-        reply: `${product.title} is $${product.price} with no sale price right now. ${stockBit}. You can try coupon code(s): ${codes}.`,
-
-        intent:
-          "recommend",
-
-        title:
-          product.title,
-
-        handle:
-          product.handle,
-
-        bg_color:
-          "#c9e2e8",
-      };
+      return talk(
+        `${product.title} is $${product.price} and not marked down. Coupon code ${codes}.`,
+        [cardFields(product)]
+      );
     }
 
-    return {
-      reply: `${product.title} is currently $${product.price || "priced as listed"} with no active discount. ${stockBit}.`,
-
-      intent:
-        "recommend",
-
-      title:
-        product.title,
-
-      handle:
-        product.handle,
-
-      bg_color:
-        "#c9e2e8",
-    };
+    return talk(
+      `No. ${product.title} is $${product.price || "listed"} with no published coupon code.`,
+      [cardFields(product)]
+    );
   }
 
-  const saleItems =
-    (catalog || [])
-      .filter(
-        productHasSale
-      )
-      .slice(0, 5);
+  if (hasCoupons && saleItems.length) {
+    return talk(
+      `Coupon code ${codes}. These are on sale.`,
+      saleItems.map((item) => cardFields(item))
+    );
+  }
 
   if (hasCoupons) {
-    const codes =
-      published
-        .map(
-          (item) =>
-            `${item.code} (${item.detail})`
-        )
-        .join("; ");
-
-    const saleBit =
-      saleItems.length
-        ? ` Also on sale now: ${saleItems
-          .map(
-            (item) =>
-              `${item.title} $${item.price} (was $${item.compare_at_price})`
-          )
-          .join("; ")}.`
-        : "";
-
-    return {
-      reply: `Published coupon code(s): ${codes}.${saleBit}`,
-
-      intent:
-        "chat",
-
-      title: "",
-
-      handle: "",
-
-      bg_color:
-        "#c9e2e8",
-    };
+    return talk(
+      `Coupon code ${codes}. Nothing is marked down right now.`,
+      []
+    );
   }
 
-  if (
-    saleItems.length
-  ) {
-    return {
-      reply: `There is no published coupon code right now. These products currently show a real sale price: ${saleItems
-        .map(
-          (item) =>
-            `${item.title} $${item.price} (was $${item.compare_at_price})`
-        )
-        .join("; ")}.`,
-
-      intent:
-        "chat",
-
-      title: "",
-
-      handle: "",
-
-      bg_color:
-        "#c9e2e8",
-    };
+  if (saleItems.length) {
+    return talk(
+      "No published coupon code. These are on sale right now.",
+      saleItems.map((item) => cardFields(item))
+    );
   }
 
-  return {
-    reply:
-      "No — there is no published coupon code right now, and no products currently show an active sale price in the live catalog.",
-
-    intent:
-      "chat",
-
-    title: "",
-
-    handle: "",
-
-    bg_color:
-      "#c9e2e8",
-  };
+  return talk(
+    "No published coupon code, and nothing is on sale right now.",
+    []
+  );
 }
 
 function formatProductFact(
@@ -3072,7 +2937,17 @@ function isBestsellerQuestion(text) {
 
   return (
     ranking &&
-    contentTerms(withoutSalesRankWords(value)).length === 0
+    contentTerms(withoutSalesRankWords(value)).filter(
+      (term) =>
+        !new Set([
+          "season",
+          "today",
+          "tonight",
+          "now",
+          "please",
+          "currently",
+        ]).has(term)
+    ).length === 0
   );
 }
 
@@ -3083,6 +2958,7 @@ function extractIngredientQuery(text) {
     !value ||
     isBestsellerQuestion(value) ||
     isDiscountQuestion(value) ||
+    /\bcollections?\b/i.test(value) ||
     /\b(ship(?:ping)?|delivery|return|refund|exchange)\b/i.test(value)
   ) {
     return null;
@@ -3099,8 +2975,13 @@ function extractIngredientQuery(text) {
       value
     ) || /\bwith\b/i.test(value);
 
+  const onlyTerm = terms.length === 1 ? terms[0] : "";
+  const knownNote =
+    Boolean(onlyTerm) &&
+    (SCENT_TERMS.has(onlyTerm) || Boolean(NOTE_FAMILIES[onlyTerm]));
+
   const shortLookup =
-    terms.length === 1 &&
+    knownNote &&
     value.split(/\s+/).length <= 4;
 
   if (!explicit && !shortLookup) {
@@ -3321,9 +3202,6 @@ function matchCard(item, hits) {
   });
 }
 
-const NO_MATCH_REPLY =
-  "Nothing matched that. If you'd like, I can suggest something.";
-
 function isSuggestionYes(text) {
   return /^(yes|yeah|yep|yup|sure|ok|okay|please|haan|ha+|han|suggest|suggestion|yes please|sure please|theek hai|thik hai|kar do|suggest karo|kuch suggest karo)[.!?\s]*$/i.test(
     String(text || "").trim()
@@ -3337,7 +3215,7 @@ function lastReplyOfferedSuggestion(history) {
     const item = items[index];
 
     if (item?.role === "assistant" || item?.role === "ai") {
-      return /if you'd like, i can suggest/i.test(
+      return /i'd start with these|i'd reach for|if you'd like, i can suggest/i.test(
         item.content || ""
       );
     }
@@ -3346,45 +3224,197 @@ function lastReplyOfferedSuggestion(history) {
   return false;
 }
 
-function noMatchReply() {
-  return {
-    reply: NO_MATCH_REPLY,
-    intent: "chat",
-    title: "",
-    handle: "",
-    products: [],
-    exact_match: true,
-    no_match: true,
-    bg_color: "#c9e2e8",
-  };
+function topicPhrase(text) {
+  const scent = queryScentTerms(text);
+
+  if (scent.length) {
+    return scent.slice(0, 3).join(" and ");
+  }
+
+  const terms = contentTerms(text)
+    .filter((term) => term.length >= 4)
+    .slice(0, 3);
+
+  if (terms.length) {
+    return terms.join(" ");
+  }
+
+  return String(text || "")
+    .replace(/[?!.]+/g, "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 6)
+    .join(" ");
 }
 
-function suggestionReply(catalog) {
-  const picks = (catalog || [])
-    .filter(
-      (item) =>
+function wearablePicks(catalog) {
+  const fragranceType =
+    /perfume|cologne|parfum|body mist|eau de|fragrance/i;
+  const candle = /candle/i;
+
+  return (catalog || [])
+    .filter((item) => {
+      const label = `${item?.type || ""} ${item?.title || ""}`;
+
+      return (
         item?.handle &&
         item?.title &&
         item.available !== false &&
-        !BLOCKED_HANDLES.has(item.handle)
-    )
-    .slice(0, 4);
+        !BLOCKED_HANDLES.has(item.handle) &&
+        !candle.test(label)
+      );
+    })
+    .sort((a, b) => {
+      const aFragrance = fragranceType.test(a.type || "") ? 0 : 1;
+      const bFragrance = fragranceType.test(b.type || "") ? 0 : 1;
 
-  if (!picks.length) {
-    return noMatchReply();
-  }
+      return aFragrance - bFragrance;
+    })
+    .slice(0, 4);
+}
+
+function talk(reply, products, extra) {
+  const shown = products || [];
 
   return {
-    reply: "Here are a few I can suggest.",
-    intent: "recommend",
-    title: "",
-    handle: "",
-    products: picks.map((item) => cardFields(item)),
+    reply,
+    intent: shown.length ? "recommend" : "chat",
+    title: shown.length === 1 ? shown[0].title : "",
+    handle: shown.length === 1 ? shown[0].handle : "",
+    products: shown,
     exact_match: true,
-    suggested: true,
     no_match: false,
     bg_color: "#c9e2e8",
+    ...(extra && typeof extra === "object" ? extra : {}),
   };
+}
+
+function conversationalReply(text, catalog) {
+  const value = String(text || "").trim();
+  const products = wearablePicks(catalog).map((item) =>
+    cardFields(item, { suggested: true })
+  );
+  const topic = topicPhrase(value);
+
+  if (
+    /^(hi|hello|hey|hii+|good morning|good evening|good afternoon|namaste)\b/i.test(
+      value
+    )
+  ) {
+    return talk(
+      "Hello. Tell me a mood or a note, or start with these.",
+      products,
+      { suggested: true }
+    );
+  }
+
+  if (/\b(thank you|thanks|shukriya)\b/i.test(value)) {
+    return talk(
+      "You're welcome. If you want another scent, these are easy to try.",
+      products,
+      { suggested: true }
+    );
+  }
+
+  if (/\b(how are you|who are you|what can you do)\b/i.test(value)) {
+    return talk(
+      "I'm your scent guide here. Tell me a mood, and I'll pick with you.",
+      products,
+      { suggested: true }
+    );
+  }
+
+  if (
+    /\b(weather|news|score|joke|what time|who won)\b/i.test(value)
+  ) {
+    return talk(
+      "I stay with fragrance, so I can't answer that. I can still help you choose one of these.",
+      products,
+      { suggested: true }
+    );
+  }
+
+  if (topic) {
+    return talk(
+      `You asked about ${topic}. I don't see that note here, so I'd start with these.`,
+      products,
+      { suggested: true }
+    );
+  }
+
+  return talk(
+    "Tell me a mood or a note and I'll pick with you. These are easy places to start.",
+    products,
+    { suggested: true }
+  );
+}
+
+function noMatchReply(text, catalog) {
+  return conversationalReply(text, catalog);
+}
+
+function suggestionReply(catalog) {
+  const picks = wearablePicks(catalog);
+
+  if (!picks.length) {
+    return conversationalReply("", catalog);
+  }
+
+  return talk(
+    "You want a suggestion. These are the ones I'd reach for.",
+    picks.map((item) => cardFields(item, { suggested: true })),
+    { suggested: true }
+  );
+}
+
+function askedSalesListSize(text) {
+  const value = String(text || "").toLowerCase();
+
+  if (
+    /\b(?:2nd|3rd|4th|5th|second|third|fourth|fifth|dusra|doosra|dusara|teesra|tisra)\b/.test(
+      value
+    )
+  ) {
+    return null;
+  }
+
+  const match = value.match(
+    /\b(?:top|best)\s+(\d+)\b|\b(\d+)\s+(?:top|best)\b/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const count = Number(match[1] || match[2]);
+
+  if (count >= 2 && count <= 4) {
+    return count;
+  }
+
+  return null;
+}
+
+function isOpenRecommendation(text) {
+  return /\b(recommend|suggestion|suggest|what should i wear|wear tonight|for tonight|something for me|help me choose|surprise me|pick something|suggest me|suggest karo|kuch suggest)\b/i.test(
+    String(text || "")
+  );
+}
+
+function titleMatches(catalog, text) {
+  const terms = contentTerms(text).filter((term) => term.length >= 4);
+
+  if (!terms.length) {
+    return [];
+  }
+
+  return (catalog || [])
+    .filter((product) => {
+      const title = normalizeTitle(product?.title);
+
+      return terms.every((term) => title.includes(term));
+    })
+    .slice(0, 4);
 }
 
 function rankLoose(catalog, text) {
@@ -3404,42 +3434,369 @@ function rankLoose(catalog, text) {
     .map((row) => row.product);
 }
 
+const CATEGORY_RULES = [
+  {
+    label: "men",
+    test: (text) =>
+      /\b(men|man|male|gents?)\b/i.test(text) &&
+      !/\bwomen\b/i.test(text),
+    match: (type) => /\bmen\b/i.test(type) && !/\bwomen\b/i.test(type),
+  },
+  {
+    label: "women",
+    test: (text) => /\b(women|woman|female|ladies|lady)\b/i.test(text),
+    match: (type) => /\bwomen\b/i.test(type),
+  },
+  {
+    label: "unisex",
+    test: (text) => /\bunisex\b/i.test(text),
+    match: (type) => /\bunisex\b/i.test(type),
+  },
+  {
+    label: "body mist",
+    test: (text) => /\bbody\s*mists?\b/i.test(text),
+    match: (type, title) => /body\s*mist/i.test(`${type} ${title}`),
+  },
+  {
+    label: "body splash",
+    test: (text) => /\bbody\s*splash(?:es)?\b/i.test(text),
+    match: (type, title) => /body\s*splash/i.test(`${type} ${title}`),
+  },
+  {
+    label: "candles",
+    test: (text) => /\bcandles?\b/i.test(text),
+    match: (type, title) => /candle/i.test(`${type} ${title}`),
+  },
+  {
+    label: "perfume",
+    test: (text) => /\b(perfumes?|parfums?)\b/i.test(text),
+    match: (type, title) => {
+      const label = `${type} ${title}`;
+
+      if (/candle|insurance|subscription/i.test(label)) {
+        return false;
+      }
+
+      return (
+        /perfume|parfum|eau de|fragrance|body mist|body splash/i.test(
+          label
+        ) || /\b(men|women|unisex)\b/i.test(type)
+      );
+    },
+  },
+];
+
+function activeCategoryRules(text) {
+  return CATEGORY_RULES.filter((rule) => rule.test(text));
+}
+
+function productFitsCategory(product, rules) {
+  return rules.every((rule) =>
+    rule.match(product?.type || "", product?.title || "")
+  );
+}
+
+function categoryMatches(catalog, text) {
+  const rules = activeCategoryRules(text);
+
+  if (!rules.length) {
+    return null;
+  }
+
+  const products = (catalog || [])
+    .filter(
+      (item) =>
+        item?.handle &&
+        item.available !== false &&
+        !BLOCKED_HANDLES.has(item.handle) &&
+        productFitsCategory(item, rules)
+    )
+    .slice(0, 4);
+
+  if (!products.length) {
+    return null;
+  }
+
+  return {
+    label: rules.map((rule) => rule.label).join(" "),
+    products,
+  };
+}
+
+const COLLECTION_GENERIC = new Set([
+  "fragrance",
+  "fragrances",
+  "collection",
+  "collections",
+  "perfume",
+  "perfumes",
+  "shop",
+  "all",
+  "the",
+  "and",
+  "for",
+  "with",
+  "now",
+  "wear",
+  "products",
+  "product",
+]);
+
+const SCENT_COLLECTION_HANDLES = new Set([
+  "woody-perfume",
+  "floral",
+  "citrus",
+  "fresh",
+  "vanilla",
+  "jasmine",
+  "aquatic",
+  "warm-spicy-perfume",
+  "fruity",
+  "oriental",
+  "best-sellers",
+  "all-products",
+  "all-perfumes",
+]);
+
+let collectionListCache = {
+  rows: null,
+  expiresAt: 0,
+};
+
+async function loadCollectionList() {
+  const now = Date.now();
+
+  if (
+    collectionListCache.rows &&
+    now < collectionListCache.expiresAt
+  ) {
+    return collectionListCache.rows;
+  }
+
+  let rows = [];
+
+  try {
+    const response = await fetch(
+      `https://${SHOP_DOMAIN}/collections.json?limit=250`,
+      { headers: { Accept: "application/json" } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+
+      rows = (data?.collections || [])
+        .map((item) => ({
+          title: String(item?.title || "").trim(),
+          handle: String(item?.handle || "").trim(),
+        }))
+        .filter((item) => item.title && item.handle);
+    }
+  } catch {
+    rows = [];
+  }
+
+  collectionListCache = {
+    rows,
+    expiresAt: now + CATALOG_CACHE_TTL_MS,
+  };
+
+  return rows;
+}
+
+function bestCollection(text, rows) {
+  const askedCollection = /\bcollections?\b/i.test(text);
+  const hay = normalizeTitle(text);
+  let best = null;
+  let bestScore = 0;
+
+  for (const row of rows || []) {
+    if (
+      !askedCollection &&
+      SCENT_COLLECTION_HANDLES.has(row.handle)
+    ) {
+      continue;
+    }
+
+    const words = normalizeTitle(row.title)
+      .split(" ")
+      .filter(
+        (word) => word.length >= 3 && !COLLECTION_GENERIC.has(word)
+      );
+
+    if (!words.length) {
+      continue;
+    }
+
+    const hits = words.filter((word) =>
+      new RegExp(`\\b${word}\\b`).test(hay)
+    );
+
+    if (!hits.length) {
+      continue;
+    }
+
+    const rules = activeCategoryRules(text);
+
+    if (
+      rules.length &&
+      !rules.every((rule) => rule.match(row.title, row.title))
+    ) {
+      continue;
+    }
+
+    const singleOk =
+      words.length === 1 &&
+      hits.length === 1 &&
+      !SCENT_TERMS.has(words[0]) &&
+      !NOTE_FAMILIES[words[0]];
+    const ok = askedCollection
+      ? hits.length >= 1
+      : hits.length >= 2 || singleOk;
+
+    if (!ok) {
+      continue;
+    }
+
+    const score = hits.length / words.length;
+
+    if (score > bestScore) {
+      best = row;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+async function replyForCollection(text) {
+  const rows = await loadCollectionList().catch(() => []);
+  const chosen = bestCollection(text, rows);
+
+  if (!chosen) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://${SHOP_DOMAIN}/collections/${chosen.handle}/products.json?limit=250`,
+      { headers: { Accept: "application/json" } }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    let mapped = (data?.products || [])
+      .filter(
+        (item) =>
+          item?.handle &&
+          item?.title &&
+          !BLOCKED_HANDLES.has(item.handle)
+      )
+      .map((item) => mapProduct(item, [chosen.title]));
+    const budgeted = filterByBudget(mapped, text);
+    const budgetAsked = budgeted.length !== mapped.length;
+
+    if (budgetAsked) {
+      mapped = budgeted;
+    }
+
+    const products = mapped
+      .slice(0, 4)
+      .map((item) => cardFields(item));
+
+    if (!products.length) {
+      return null;
+    }
+
+    return talk(
+      `You asked for the ${chosen.title} collection. These are in it.`,
+      products
+    );
+  } catch {
+    return null;
+  }
+}
+
 function buildFastRecommendReply(text, catalog) {
   const budgeted = filterByBudget(catalog || [], text);
   const budgetAsked = budgeted.length !== (catalog || []).length;
   const source = budgeted.length ? budgeted : [];
   const scentTerms = queryScentTerms(text);
-  const empty = noMatchReply();
 
   if (scentTerms.length) {
-    const ranked = scentMatches(
+    let ranked = scentMatches(
       budgetAsked ? source : catalog || [],
       scentTerms
-    ).slice(0, 4);
+    );
+    const rules = activeCategoryRules(text);
 
-    if (!ranked.length) {
-      return empty;
+    if (rules.length) {
+      ranked = ranked.filter((row) =>
+        productFitsCategory(row.product, rules)
+      );
     }
 
+    ranked = ranked.slice(0, 4);
+
+    if (!ranked.length) {
+      const typed = categoryMatches(catalog, text);
+
+      if (typed) {
+        return talk(
+          `You asked for ${typed.label}. These are in that category.`,
+          typed.products.map((item) =>
+            cardFields(item, { suggested: true })
+          ),
+          { suggested: true }
+        );
+      }
+
+      return conversationalReply(text, catalog);
+    }
+
+    const asked = scentTerms.join(" and ");
     const names = ranked.map((row) => row.product.title).filter(Boolean);
     const reply =
       ranked.length === 1
-        ? `${names[0]} lists ${ranked[0].hits.slice(0, 3).join(", ")}.`
-        : "These match what you asked for.";
+        ? `${names[0]} is the one for ${asked}.`
+        : `You asked for ${asked}. These actually list it.`;
 
-    return {
+    return talk(
       reply,
-      intent: "recommend",
-      title: ranked.length === 1 ? ranked[0].product.title : "",
-      handle: ranked.length === 1 ? ranked[0].product.handle : "",
-      products: ranked.map((row) => matchCard(row.product, row.hits)),
-      exact_match: true,
-      bg_color: "#c9e2e8",
-    };
+      ranked.map((row) => matchCard(row.product, row.hits))
+    );
   }
 
   if (!budgetAsked) {
-    return empty;
+    const typed = categoryMatches(catalog, text);
+
+    if (typed) {
+      return talk(
+        `You asked for ${typed.label}. These are in that category.`,
+        typed.products.map((item) => cardFields(item))
+      );
+    }
+
+    if (isOpenRecommendation(text)) {
+      return suggestionReply(catalog);
+    }
+
+    const named = titleMatches(catalog, text);
+
+    if (named.length) {
+      const title = named.length === 1 ? named[0].title : "";
+
+      return talk(
+        named.length === 1
+          ? `${title} is the one you asked about.`
+          : "You asked about that name. These are the ones that match it.",
+        named.map((item) => cardFields(item))
+      );
+    }
+
+    return conversationalReply(text, catalog);
   }
 
   const priced = source
@@ -3447,23 +3804,19 @@ function buildFastRecommendReply(text, catalog) {
     .slice(0, 4);
 
   if (!priced.length) {
-    return empty;
+    return talk(
+      "That budget is tight here. These are the ones I'd still look at.",
+      wearablePicks(catalog).map((item) =>
+        cardFields(item, { suggested: true })
+      ),
+      { suggested: true }
+    );
   }
 
-  const names = priced.map((item) => item.title).filter(Boolean);
-
-  return {
-    reply:
-      names.length === 1
-        ? `${names[0]} is within that budget.`
-        : "These are within that budget.",
-    intent: "recommend",
-    title: names.length === 1 ? priced[0].title : "",
-    handle: names.length === 1 ? priced[0].handle : "",
-    products: priced.map(cardFields),
-    exact_match: true,
-    bg_color: "#c9e2e8",
-  };
+  return talk(
+    "You asked for that budget. These fit it.",
+    priced.map((item) => cardFields(item))
+  );
 }
 
 function buildPolicyReply(kind, contextText) {
@@ -3493,27 +3846,19 @@ function buildPolicyReply(kind, contextText) {
   };
 }
 
-function buildFactualIngredientReply(terms, matches) {
+function buildFactualIngredientReply(terms, matches, catalog) {
   const shown = (matches || []).slice(0, 4);
   const label = (terms || []).join(" and ");
 
   if (!shown.length) {
-    return noMatchReply();
+    return conversationalReply(label, catalog);
   }
 
   const names = shown.map((item) => item.title);
-  const evidence = [
-    ...new Set(
-      shown.flatMap((item) =>
-        (terms || []).flatMap((term) => noteHits(item, term))
-      )
-    ),
-  ].slice(0, 3);
-  const found = evidence.length ? evidence.join(", ") : label;
   const reply =
     shown.length === 1
-      ? `${names[0]} lists ${found}.`
-      : `These list ${found}.`;
+      ? `${names[0]} is the one for ${label}.`
+      : `You asked for ${label}. These actually list it.`;
 
   return {
     reply,
@@ -3616,10 +3961,7 @@ async function loadRankFromSales() {
     }
 
     ranked.push({
-      title: match.title,
-      handle: match.handle,
-      type: match.type || "",
-      image: match.image || "",
+      ...match,
       units_sold: sold,
       source: "shopify-sales",
     });
@@ -3673,7 +4015,7 @@ function buildFactualBestsellerReply(text, ranked) {
   if (!list.length) {
     return {
       reply:
-        "I can't read order sales yet. The Shopify app needs report access.",
+        "I need order sales before I can name the real top seller. I won't guess.",
       intent: "chat",
       title: "",
       handle: "",
@@ -3684,15 +4026,19 @@ function buildFactualBestsellerReply(text, ranked) {
   }
 
   const rank = explicitSalesRank(text);
+  const listSize = askedSalesListSize(text);
   const many =
-    rank == null &&
-    /\b(best sellers|bestsellers|top sellers)\b/i.test(text || "");
+    listSize != null ||
+    (rank == null &&
+      /\b(best sellers|bestsellers|top sellers)\b/i.test(text || ""));
 
   if (many) {
-    const shown = list.slice(0, 4);
+    const shown = list.slice(0, listSize || 4);
 
     return {
-      reply: "These are our best sellers right now.",
+      reply: listSize
+        ? `You asked for the top ${listSize}. These lead the order list.`
+        : "You asked for the best sellers. These lead the order list.",
       intent: "recommend",
       title: "",
       handle: "",
@@ -3721,8 +4067,8 @@ function buildFactualBestsellerReply(text, ranked) {
   const top = picked;
   const reply =
     place === 1
-      ? `${top.title} is our top seller.`
-      : `${top.title} is our ${rankLabel(place)} top seller.`;
+      ? `${top.title} is our top seller, from real orders.`
+      : `${top.title} is our ${rankLabel(place)} top seller, from real orders.`;
 
   return {
     reply,
@@ -5551,7 +5897,8 @@ module.exports = async (
       const payload =
         buildFactualIngredientReply(
           ingredientTerms,
-          matches
+          matches,
+          catalog
         );
 
       payload.reply =
@@ -5647,24 +5994,10 @@ module.exports = async (
       classification.query_type ===
         "off_topic"
     ) {
-      if (
-        /^(hi|hello|hey|hii+|good morning|good evening|good afternoon|namaste)\b/i.test(
-          String(text || "").trim()
-        )
-      ) {
-        return sendFast({
-          reply:
-            "Hello. Tell me a mood, a note, or an occasion.",
-          intent: "chat",
-          title: "",
-          handle: "",
-          products: [],
-          exact_match: true,
-          bg_color: "#c9e2e8",
-        });
-      }
+      const catalog =
+        await loadFullCatalog().catch(() => []);
 
-      return sendFast(noMatchReply());
+      return sendFast(conversationalReply(text, catalog));
     }
 
     if (
@@ -5724,6 +6057,18 @@ module.exports = async (
         .catch(
           () => []
         );
+
+    const wantsCollection = /\bcollections?\b/i.test(text);
+    const collectionReply = await replyForCollection(text).catch(
+      () => null
+    );
+
+    if (
+      collectionReply &&
+      (wantsCollection || !queryScentTerms(text).length)
+    ) {
+      return sendFast(collectionReply);
+    }
 
     return sendFast(
       buildFastRecommendReply(
@@ -5824,6 +6169,7 @@ module.exports._test = {
   buildFactualIngredientReply,
   buildFactualBestsellerReply,
   noMatchReply,
+  conversationalReply,
   isSuggestionYes,
   lastReplyOfferedSuggestion,
   loadBestsellerProducts,
