@@ -360,7 +360,8 @@ async function run() {
   });
   assert.ok(/^No/i.test(noSaleReply.reply));
   assert.ok(/Amber Night/.test(noSaleReply.reply));
-  assert.doesNotMatch(noSaleReply.reply, /coupon code/i);
+  assert.match(noSaleReply.reply, /no coupon code/i);
+  assert.doesNotMatch(noSaleReply.reply, /SAVE10/i);
 
   const withCode = t.buildFactualDiscountReply({
     text: "coupon code?",

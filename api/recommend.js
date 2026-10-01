@@ -2366,6 +2366,97 @@ function isPublicCouponCode({
   return true;
 }
 
+function mapShopifyDiscount(discount) {
+  if (!discount || discount.status === "EXPIRED") {
+    return null;
+  }
+
+  const items = discount.customerGets?.items;
+  const productHandles = (items?.products?.nodes || [])
+    .map((item) => String(item?.handle || "").toLowerCase())
+    .filter(Boolean);
+  const collectionTitles = (items?.collections?.nodes || [])
+    .map((item) => String(item?.title || "").toLowerCase())
+    .filter(Boolean);
+  const collectionHandles = (items?.collections?.nodes || [])
+    .map((item) => String(item?.handle || "").toLowerCase())
+    .filter(Boolean);
+  let scope = "all";
+
+  if (items?.__typename === "DiscountProducts") {
+    scope = "products";
+  } else if (items?.__typename === "DiscountCollections") {
+    scope = "collections";
+  }
+
+  return {
+    code: discount.codes?.nodes?.[0]?.code
+      ? String(discount.codes.nodes[0].code).toUpperCase()
+      : "",
+    detail: String(discount.summary || discount.title || "").trim(),
+    scope,
+    productHandles,
+    collectionTitles,
+    collectionHandles,
+  };
+}
+
+function couponApplies(coupon, product) {
+  if (!product || !coupon?.scope || coupon.scope === "all") {
+    return true;
+  }
+
+  if (coupon.scope === "products") {
+    return (coupon.productHandles || []).includes(
+      String(product.handle || "").toLowerCase()
+    );
+  }
+
+  if (coupon.scope === "collections") {
+    const names = (product.collections || []).map((item) =>
+      String(item || "").toLowerCase()
+    );
+
+    if (!names.length) {
+      return true;
+    }
+
+    const targets = [
+      ...(coupon.collectionTitles || []),
+      ...(coupon.collectionHandles || []),
+    ];
+
+    return targets.some((target) => names.includes(target));
+  }
+
+  return true;
+}
+
+function applicableCouponCodes(coupons, product) {
+  return (Array.isArray(coupons) ? coupons : [])
+    .filter(
+      (item) =>
+        item?.code &&
+        isPublicCouponCode(item) &&
+        couponApplies(item, product)
+    )
+    .slice(0, MAX_COUPONS_SHOWN);
+}
+
+function couponCodeList(codes) {
+  const names = codes.map((item) => item.code).filter(Boolean);
+
+  if (names.length <= 1) {
+    return names[0] || "";
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} or ${names[1]}`;
+  }
+
+  return `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
+}
+
 async function loadShopifyDiscounts() {
   if (!hasShopifyAdminAuth()) {
     return [];
@@ -2383,6 +2474,30 @@ async function loadShopifyDiscounts() {
                 status
                 summary
                 codes(first: 1) { nodes { code } }
+                customerGets {
+                  items {
+                    __typename
+                    ... on AllDiscountItems { allItems }
+                    ... on DiscountProducts {
+                      products(first: 30) { nodes { handle } }
+                    }
+                    ... on DiscountCollections {
+                      collections(first: 15) { nodes { handle title } }
+                    }
+                  }
+                }
+              }
+              ... on DiscountCodeBxgy {
+                title
+                status
+                summary
+                codes(first: 1) { nodes { code } }
+              }
+              ... on DiscountCodeFreeShipping {
+                title
+                status
+                summary
+                codes(first: 1) { nodes { code } }
               }
               ... on DiscountAutomaticBasic {
                 title
@@ -2396,20 +2511,7 @@ async function loadShopifyDiscounts() {
     );
 
     return (data?.discountNodes?.nodes || [])
-      .map((node) => {
-        const discount = node?.discount;
-
-        if (!discount || discount.status === "EXPIRED") {
-          return null;
-        }
-
-        const code = discount.codes?.nodes?.[0]?.code;
-
-        return {
-          code: code ? String(code).toUpperCase() : "",
-          detail: String(discount.summary || discount.title || "").trim(),
-        };
-      })
+      .map((node) => mapShopifyDiscount(node?.discount))
       .filter((item) => item && (item.code || item.detail));
   } catch (err) {
     console.warn(
@@ -2593,11 +2695,18 @@ function isCatalogWideDiscount(text) {
 }
 
 function refersToShownProduct(text) {
-  return /\b(this|that|it|these|those|the one|this one|this product|that product|previous|already|shown|mentioned)\b/i.test(
+  return /\b(this|that|it|these|those|the one|this one|this product|that product|is product|previous|already|shown|mentioned)\b/i.test(
     String(text || "")
   ) || /(usme|isme|ispe|usi par|jo bataya|jo dikhay)/i.test(
     String(text || "")
   );
+}
+
+function asksForCoupon(text) {
+  const value = String(text || "");
+
+  return /\b(coupons?|coupans?|promo(?:\s*code)?s?|vouchers?|discount\s*codes?)\b/i.test(value)
+    || /\b(koi|any|is there).{0,24}\bcodes?\b/i.test(value);
 }
 
 function buildFactualDiscountReply({
@@ -2608,10 +2717,16 @@ function buildFactualDiscountReply({
 }) {
   const catalogWide = isCatalogWideDiscount(text);
   const named = findReferencedProduct(text, catalog, []);
+  const storewideCoupon =
+    asksForCoupon(text) &&
+    /\b(any|all|every|which|kisi|koi)\b/i.test(String(text || "")) &&
+    !refersToShownProduct(text) &&
+    !named;
   const product =
     named ||
     (
       !catalogWide &&
+      !storewideCoupon &&
       (refersToShownProduct(text) || (previousHandles || []).length)
         ? findReferencedProduct(text, catalog, previousHandles)
         : null
@@ -2641,6 +2756,41 @@ function buildFactualDiscountReply({
     codes ? `Code ${codes}.` : "",
     automatic[0] ? `Offer: ${automatic[0].detail}.` : "",
   ].filter(Boolean).join(" ");
+
+  if (asksForCoupon(text)) {
+    const matching = applicableCouponCodes(published, product);
+    const listed = couponCodeList(matching);
+    const cards = product
+      ? [cardFields(product)]
+      : saleItems.map((item) => cardFields(item));
+
+    if (listed && product) {
+      return talk(
+        `Yes. Use ${listed} on ${product.title}.`,
+        cards
+      );
+    }
+
+    if (listed) {
+      return talk(`Yes. Use ${listed}.`, []);
+    }
+
+    if (product && productHasSale(product)) {
+      return talk(
+        `No coupon code for ${product.title}. It is already on sale.`,
+        cards
+      );
+    }
+
+    if (product) {
+      return talk(
+        `No, ${product.title} has no coupon code right now.`,
+        cards
+      );
+    }
+
+    return talk("No coupon code is active right now.", []);
+  }
 
   if (product) {
     const onSale = productHasSale(product);
@@ -3531,6 +3681,218 @@ function openWithGuest(payload, name, opening) {
   };
 }
 
+function plainReply(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function couponTokens(value) {
+  return [
+    ...String(value || "").matchAll(/\b[A-Z][A-Z0-9]{3,15}\b/g),
+  ].map((match) => match[0]);
+}
+
+function replyIsFaithful(fact, spoken, products, history) {
+  const say = String(spoken || "").replace(/\s+/g, " ").trim();
+  const source = String(fact || "").replace(/\s+/g, " ").trim();
+
+  if (!say || !source) {
+    return false;
+  }
+
+  const words = say.split(/\s+/).filter(Boolean);
+
+  if (words.length > 22 || words.length < 3) {
+    return false;
+  }
+
+  const sentences = say.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean);
+
+  if (sentences.length > 2 || /\$/.test(say)) {
+    return false;
+  }
+
+  if (
+    /i'd start with|clearest|sits a little softer|on the counter|is the one you named|tell me a mood|i won't guess|nothing matched/i.test(
+      say
+    )
+  ) {
+    return false;
+  }
+
+  if (plainReply(say) === plainReply(source)) {
+    return false;
+  }
+
+  const titles = (products || [])
+    .map((item) => String(item?.title || "").trim())
+    .filter(Boolean);
+  const named = titles.filter((title) =>
+    source.toLowerCase().includes(title.toLowerCase())
+  );
+  let cursor = -1;
+
+  for (const title of named) {
+    const at = say.toLowerCase().indexOf(title.toLowerCase());
+
+    if (at < 0 || at < cursor) {
+      return false;
+    }
+
+    cursor = at;
+  }
+
+  const requiredCodes = couponTokens(source);
+  const spokenCodes = couponTokens(say);
+
+  if (
+    requiredCodes.some((code) => !say.toUpperCase().includes(code)) ||
+    spokenCodes.some((code) => !source.toUpperCase().includes(code))
+  ) {
+    return false;
+  }
+
+  const deniesSale = /not on sale|no coupon|nothing is on sale/i.test(source);
+
+  if (
+    deniesSale &&
+    /\bis on sale\b/i.test(say) &&
+    !/already on sale/i.test(source)
+  ) {
+    return false;
+  }
+
+  if (deniesSale && /\byes\b/i.test(say)) {
+    return false;
+  }
+
+  if (/this season/i.test(source) && !/this season/i.test(say)) {
+    return false;
+  }
+
+  if (/all store orders/i.test(source) && !/all store orders/i.test(say)) {
+    return false;
+  }
+
+  let withoutTitles = say;
+
+  titles.forEach((title) => {
+    withoutTitles = withoutTitles.replace(
+      new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"),
+      " "
+    );
+  });
+
+  if (/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(withoutTitles)) {
+    return false;
+  }
+
+  const recent = (history || [])
+    .filter((item) => item?.role === "assistant" || item?.role === "ai")
+    .map((item) => plainReply(item?.content))
+    .filter(Boolean);
+
+  return !recent.includes(plainReply(say));
+}
+
+async function requestSpokenReply(openai, { text, fact, products, history, stricter }) {
+  const recent = (history || [])
+    .filter((item) => item?.role === "assistant" || item?.role === "ai")
+    .slice(-4)
+    .map((item) => String(item.content || "").trim())
+    .filter(Boolean);
+  const names = (products || [])
+    .map((item) => item?.title)
+    .filter(Boolean)
+    .join("; ");
+  const completion = await openai.chat.completions.create(
+    {
+      model: MODEL,
+      temperature: stricter ? 0.4 : 0.9,
+      max_tokens: 70,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are the CN1 Fragrance concierge.",
+            "Rephrase FACT into one or two new spoken sentences.",
+            "FACT is true. Do not add products, prices, ranks, or coupon codes.",
+            "Keep every product name that FACT uses, in the same order.",
+            "If FACT includes a coupon code, keep that exact code.",
+            "If FACT says there is no coupon or the item is not on sale, do not say yes.",
+            "Do not copy FACT.",
+            "Never use: I'd start with, clearest, sits a little softer, on the counter, is the one you named, tell me a mood, I won't guess.",
+            "Do not repeat a recent concierge line.",
+            "Maximum 22 words. No dollar prices.",
+            "Sound like a person in the shop. Match the shopper's language when it is clearly Hindi or English.",
+            'Return only JSON: {"reply":"..."}',
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: [
+            `Shopper: ${text}`,
+            names ? `Products on the cards: ${names}` : "",
+            recent.length ? `Recent concierge lines:\n${recent.join("\n")}` : "",
+            `FACT: ${fact}`,
+            stricter
+              ? "The previous sentence was rejected. Keep the same facts and write a different sentence."
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
+      ],
+    },
+    { timeout: 1800 }
+  );
+  const parsed = extractJson(completion.choices[0]?.message?.content);
+
+  return String(parsed?.reply || "").replace(/\s+/g, " ").trim();
+}
+
+async function speakReply({ text, history, payload }) {
+  const fact = String(payload?.reply || "").trim();
+
+  if (!fact || !process.env.OPENAI_API_KEY) {
+    return fact;
+  }
+
+  try {
+    const openai = getOpenAIClient();
+    const products = payload?.products || [];
+    const first = await requestSpokenReply(openai, {
+      text,
+      fact,
+      products,
+      history,
+    });
+
+    if (replyIsFaithful(fact, first, products, history)) {
+      return first;
+    }
+
+    const second = await requestSpokenReply(openai, {
+      text,
+      fact,
+      products,
+      history,
+      stricter: true,
+    });
+
+    if (replyIsFaithful(fact, second, products, history)) {
+      return second;
+    }
+  } catch (err) {
+    console.warn("Spoken reply fell back to store facts:", err?.message || err);
+  }
+
+  return fact;
+}
+
 function talk(reply, products, extra) {
   const shown = products || [];
 
@@ -4338,8 +4700,8 @@ function buildFactualBestsellerReply(
   const rank = explicitSalesRank(text);
   const listSize = askedSalesListSize(text);
 
-  if (rank == null) {
-    const shown = list.slice(0, listSize || 3);
+  if (rank == null && listSize) {
+    const shown = list.slice(0, listSize);
     const names = shown.map((item) => item.title).filter(Boolean);
     const [first, second, third] = names;
     const reply =
@@ -6030,9 +6392,17 @@ module.exports = async (
   const openingVisit =
     body.opening === true;
 
-  const shapeReply = (payload) => {
-    const personal = openWithGuest(
+  const shapeReply = async (payload) => {
+    const spoken = await speakReply({
+      text,
+      history,
       payload,
+    });
+    const personal = openWithGuest(
+      {
+        ...payload,
+        reply: spoken,
+      },
       guestName,
       openingVisit
     );
@@ -6186,7 +6556,7 @@ module.exports = async (
         ranked = diversePicks(catalog);
       }
 
-      const payload = shapeReply(
+      const payload = await shapeReply(
         buildFactualBestsellerReply(text, ranked, fromOrders, seasonal)
       );
 
@@ -6234,7 +6604,7 @@ module.exports = async (
           ingredientTerms
         );
 
-      const payload = shapeReply(
+      const payload = await shapeReply(
         buildFactualIngredientReply(
           ingredientTerms,
           matches,
@@ -6278,8 +6648,8 @@ module.exports = async (
         previousHandles
       );
 
-    const sendFast = (payload) => {
-      const personal = shapeReply(payload);
+    const sendFast = async (payload) => {
+      const personal = await shapeReply(payload);
 
       return res
         .status(200)
@@ -6318,7 +6688,7 @@ module.exports = async (
       const catalog =
         await loadFullCatalog().catch(() => []);
 
-      return sendFast(suggestionReply(catalog));
+      return await sendFast(suggestionReply(catalog));
     }
 
     if (
@@ -6330,7 +6700,7 @@ module.exports = async (
       const catalog =
         await loadFullCatalog().catch(() => []);
 
-      return sendFast(conversationalReply(text, catalog));
+      return await sendFast(conversationalReply(text, catalog));
     }
 
     if (
@@ -6352,7 +6722,7 @@ module.exports = async (
             () => []
           );
 
-      return sendFast(
+      return await sendFast(
         buildFactualDiscountReply(
           {
             text,
@@ -6377,7 +6747,7 @@ module.exports = async (
           () => ""
         );
 
-      return sendFast(
+      return await sendFast(
         buildPolicyReply(
           classification.query_type,
           policies
@@ -6400,10 +6770,10 @@ module.exports = async (
       collectionReply &&
       (wantsCollection || !queryScentTerms(text).length)
     ) {
-      return sendFast(collectionReply);
+      return await sendFast(collectionReply);
     }
 
-    return sendFast(
+    return await sendFast(
       buildFastRecommendReply(
         text,
         catalog
@@ -6502,6 +6872,7 @@ module.exports._test = {
   buildFactualIngredientReply,
   buildFactualBestsellerReply,
   noMatchReply,
+  replyIsFaithful,
   conversationalReply,
   isSuggestionYes,
   lastReplyOfferedSuggestion,

@@ -155,13 +155,73 @@ async function run() {
     "what is the top seller",
     salesList
   );
-  assert.strictEqual(topSellerReply.products.length, 3);
+  assert.strictEqual(topSellerReply.products.length, 1);
   assert.strictEqual(topSellerReply.products[0].handle, "vanilla-harmony");
-  assert.strictEqual(topSellerReply.products[1].handle, "bliss-apple");
-  assert.strictEqual(topSellerReply.products[2].handle, "smoky-velvet");
-  assert.match(topSellerReply.reply, /Vanilla Harmony is first/i);
-  assert.match(topSellerReply.reply, /Bliss Apple is second/i);
-  assert.match(topSellerReply.reply, /Smoky Velvet is third/i);
+  assert.match(topSellerReply.reply, /Vanilla Harmony is our best seller/i);
+  assert.doesNotMatch(topSellerReply.reply, /Bliss Apple|Smoky Velvet/i);
+  const couponForShown = t.buildFactualDiscountReply({
+    text: "is there a coupon code for this product?",
+    catalog: [
+      { title: "CN1 Candy", handle: "cn1-candy", price: "32.90", compare_at_price: "47.00" },
+    ],
+    previousHandles: ["cn1-candy"],
+    coupons: [{ code: "SAVE10", detail: "10% off" }],
+  });
+  assert.match(couponForShown.reply, /SAVE10/i);
+  assert.match(couponForShown.reply, /CN1 Candy/i);
+  const noCoupon = t.buildFactualDiscountReply({
+    text: "kya is product me koi coupon code hai?",
+    catalog: [
+      { title: "Vanilla Harmony", handle: "vanilla-harmony", price: "39.00" },
+    ],
+    previousHandles: ["vanilla-harmony"],
+    coupons: [],
+  });
+  assert.match(noCoupon.reply, /no coupon code/i);
+  assert.match(noCoupon.reply, /Vanilla Harmony/i);
+  assert.doesNotMatch(noCoupon.reply, /SAVE10/i);
+  const products = [
+    { title: "Vanilla Harmony", handle: "vanilla-harmony" },
+    { title: "Bliss Apple", handle: "bliss-apple" },
+    { title: "Smoky Velvet", handle: "smoky-velvet" },
+  ];
+  const fact = "Vanilla Harmony is first. Bliss Apple is second, and Smoky Velvet is third.";
+  assert.strictEqual(
+    t.replyIsFaithful(
+      fact,
+      "Vanilla Harmony leads the list, Bliss Apple is next, and Smoky Velvet follows.",
+      products,
+      []
+    ),
+    true
+  );
+  assert.strictEqual(
+    t.replyIsFaithful(
+      fact,
+      "Bliss Apple leads, then Vanilla Harmony, then Smoky Velvet.",
+      products,
+      []
+    ),
+    false
+  );
+  assert.strictEqual(
+    t.replyIsFaithful(
+      "No, Vanilla Harmony has no coupon code right now.",
+      "Yes. Use SAVE10 on Vanilla Harmony.",
+      products,
+      []
+    ),
+    false
+  );
+  assert.strictEqual(
+    t.replyIsFaithful(
+      fact,
+      "I'd start with Vanilla Harmony, Bliss Apple, and Smoky Velvet.",
+      products,
+      []
+    ),
+    false
+  );
 
   const titleOnlyWoods = fixture({
     title: "Regal Woods",
