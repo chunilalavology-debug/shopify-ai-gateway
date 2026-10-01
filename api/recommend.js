@@ -2525,11 +2525,15 @@ function buildFactualDiscountReply({
   previousHandles,
   coupons,
 }) {
+  const aboutPrevious =
+    /\b(this|that|it|these|those|the one|this one|this product|that product)\b/i.test(
+      String(text || "")
+    );
   const product =
     findReferencedProduct(
       text,
       catalog,
-      previousHandles
+      aboutPrevious ? previousHandles : []
     );
 
   const published =
@@ -2559,34 +2563,34 @@ function buildFactualDiscountReply({
 
     if (onSale && hasCoupons) {
       return talk(
-        `Yes. ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). Coupon code ${codes}.`,
+        `Yes, ${product.title} is on sale. Coupon code ${codes}.`,
         [cardFields(product)]
       );
     }
 
     if (onSale) {
       return talk(
-        `Yes. ${product.title} is on sale at $${product.price} (was $${product.compare_at_price}). No published coupon code.`,
+        `Yes, ${product.title} is on sale.`,
         [cardFields(product)]
       );
     }
 
     if (hasCoupons) {
       return talk(
-        `${product.title} is $${product.price} and not marked down. Coupon code ${codes}.`,
+        `${product.title} is not on sale. Coupon code ${codes}.`,
         [cardFields(product)]
       );
     }
 
     return talk(
-      `No. ${product.title} is $${product.price || "listed"} with no published coupon code.`,
+      `No, ${product.title} is not on sale right now.`,
       [cardFields(product)]
     );
   }
 
   if (hasCoupons && saleItems.length) {
     return talk(
-      `Coupon code ${codes}. These are on sale.`,
+      `Yes, these products are on sale. Coupon code ${codes}.`,
       saleItems.map((item) => cardFields(item))
     );
   }
@@ -2599,14 +2603,21 @@ function buildFactualDiscountReply({
   }
 
   if (saleItems.length) {
+    const saleLine =
+      saleItems.length === 4
+        ? "Yes, these four are on sale right now."
+        : saleItems.length === 1
+          ? `Yes, ${saleItems[0].title} is on sale.`
+          : "Yes, these are on sale right now.";
+
     return talk(
-      "No published coupon code. These are on sale right now.",
+      saleLine,
       saleItems.map((item) => cardFields(item))
     );
   }
 
   return talk(
-    "No published coupon code, and nothing is on sale right now.",
+    "Nothing is on sale right now.",
     []
   );
 }
@@ -3215,7 +3226,7 @@ function lastReplyOfferedSuggestion(history) {
     const item = items[index];
 
     if (item?.role === "assistant" || item?.role === "ai") {
-      return /i'd start with these|i'd reach for|if you'd like, i can suggest/i.test(
+      return /i'd start with|i can't find|if you'd like, i can suggest/i.test(
         item.content || ""
       );
     }
@@ -3247,30 +3258,167 @@ function topicPhrase(text) {
     .join(" ");
 }
 
-function wearablePicks(catalog) {
-  const fragranceType =
-    /perfume|cologne|parfum|body mist|eau de|fragrance/i;
+function wearablePool(catalog) {
   const candle = /candle/i;
 
-  return (catalog || [])
-    .filter((item) => {
-      const label = `${item?.type || ""} ${item?.title || ""}`;
+  return (catalog || []).filter((item) => {
+    const label = `${item?.type || ""} ${item?.title || ""}`;
 
-      return (
-        item?.handle &&
-        item?.title &&
-        item.available !== false &&
-        !BLOCKED_HANDLES.has(item.handle) &&
-        !candle.test(label)
-      );
-    })
-    .sort((a, b) => {
-      const aFragrance = fragranceType.test(a.type || "") ? 0 : 1;
-      const bFragrance = fragranceType.test(b.type || "") ? 0 : 1;
+    return (
+      item?.handle &&
+      item?.title &&
+      item.available !== false &&
+      !BLOCKED_HANDLES.has(item.handle) &&
+      !candle.test(label)
+    );
+  });
+}
 
-      return aFragrance - bFragrance;
-    })
-    .slice(0, 4);
+const MOOD_FAMILIES = [
+  ["fresh", ["fresh", "citrus"]],
+  ["woody", ["woody"]],
+  ["floral", ["floral"]],
+  ["sweet", ["sweet", "vanilla"]],
+];
+
+function isGiftSet(product) {
+  return /\b(sets?|packs?|boxes|box|bundles?|kits?|trios?|duos?)\b/i.test(
+    `${product?.title || ""} ${product?.type || ""}`
+  );
+}
+
+function moodCount(product) {
+  return MOOD_FAMILIES.filter(([, terms]) =>
+    terms.some((term) => noteHits(product, term).length > 0)
+  ).length;
+}
+
+function pickForMood(pool, used, terms) {
+  const matches = pool.filter(
+    (item) =>
+      !used.has(item.handle) &&
+      terms.some((term) => noteHits(item, term).length > 0)
+  );
+  const singles = matches
+    .filter((item) => !isGiftSet(item))
+    .sort((a, b) => moodCount(a) - moodCount(b));
+
+  return singles[0] || matches.find((item) => !isGiftSet(item)) || null;
+}
+
+function salesLead() {
+  const list = salesRankCache.products || [];
+
+  return list.find((item) => item?.handle && item?.title) || null;
+}
+
+function diversePicks(catalog) {
+  const pool = wearablePool(catalog);
+  const picks = [];
+  const used = new Set();
+  const lead = salesLead();
+
+  if (lead?.handle && !BLOCKED_HANDLES.has(lead.handle)) {
+    picks.push({ ...lead, _mood: "top" });
+    used.add(lead.handle);
+  }
+
+  MOOD_FAMILIES.forEach(([mood, terms]) => {
+    if (picks.length >= 4) {
+      return;
+    }
+
+    const found = pickForMood(pool, used, terms);
+
+    if (found) {
+      picks.push({ ...found, _mood: mood });
+      used.add(found.handle);
+    }
+  });
+
+  pool.some((item) => {
+    if (picks.length >= 4) {
+      return true;
+    }
+
+    if (!used.has(item.handle) && !isGiftSet(item)) {
+      picks.push({ ...item, _mood: "" });
+      used.add(item.handle);
+    }
+
+    return false;
+  });
+
+  return picks.slice(0, 4);
+}
+
+function listWords(words) {
+  const items = (words || []).filter(Boolean);
+
+  if (items.length <= 1) {
+    return items[0] || "";
+  }
+
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function suggestionSentence(picks) {
+  const moods = picks
+    .map((item) => item._mood)
+    .filter((mood) => mood && mood !== "top");
+  const top = picks.find((item) => item._mood === "top");
+
+  if (top && moods.length) {
+    return `${top.title} is our top seller. Beside it: ${listWords(moods)}.`;
+  }
+
+  if (moods.length >= 2) {
+    return `I'd start with ${listWords(moods)}.`;
+  }
+
+  return picks[0]?.title
+    ? `${picks[0].title} is the one I'd start with.`
+    : "Tell me a mood and I'll pick with you.";
+}
+
+function staffNoteReply(names, note) {
+  const first = names[0] || "This one";
+  const second = names[1];
+
+  if (!second) {
+    return `${first} is the clearest ${note} here.`;
+  }
+
+  return `${first} is the clearest ${note}. ${second} sits a little softer beside it.`;
+}
+
+function guestFirstName(value) {
+  const cleaned = String(value || "")
+    .replace(/@.*/, "")
+    .replace(/[^\p{L}\p{M}' -]/gu, " ")
+    .trim();
+  const first = cleaned.split(/\s+/).filter(Boolean)[0] || "";
+
+  return first.slice(0, 24);
+}
+
+function openWithGuest(payload, name, opening) {
+  const first = guestFirstName(name);
+
+  if (!opening || !first || !payload || typeof payload.reply !== "string") {
+    return payload;
+  }
+
+  const reply = `${first}, ${payload.reply}`;
+
+  if (countWords(reply) > MAX_REPLY_WORDS) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    reply,
+  };
 }
 
 function talk(reply, products, extra) {
@@ -3291,10 +3439,12 @@ function talk(reply, products, extra) {
 
 function conversationalReply(text, catalog) {
   const value = String(text || "").trim();
-  const products = wearablePicks(catalog).map((item) =>
+  const picks = diversePicks(catalog);
+  const products = picks.map((item) =>
     cardFields(item, { suggested: true })
   );
   const topic = topicPhrase(value);
+  const starter = suggestionSentence(picks);
 
   if (
     /^(hi|hello|hey|hii+|good morning|good evening|good afternoon|namaste)\b/i.test(
@@ -3302,7 +3452,7 @@ function conversationalReply(text, catalog) {
     )
   ) {
     return talk(
-      "Hello. Tell me a mood or a note, or start with these.",
+      `Hello. ${starter}`,
       products,
       { suggested: true }
     );
@@ -3336,7 +3486,7 @@ function conversationalReply(text, catalog) {
 
   if (topic) {
     return talk(
-      `You asked about ${topic}. I don't see that note here, so I'd start with these.`,
+      `I can't find ${topic}. ${starter}`,
       products,
       { suggested: true }
     );
@@ -3354,14 +3504,14 @@ function noMatchReply(text, catalog) {
 }
 
 function suggestionReply(catalog) {
-  const picks = wearablePicks(catalog);
+  const picks = diversePicks(catalog);
 
   if (!picks.length) {
     return conversationalReply("", catalog);
   }
 
   return talk(
-    "You want a suggestion. These are the ones I'd reach for.",
+    suggestionSentence(picks),
     picks.map((item) => cardFields(item, { suggested: true })),
     { suggested: true }
   );
@@ -3711,7 +3861,7 @@ async function replyForCollection(text) {
     }
 
     return talk(
-      `You asked for the ${chosen.title} collection. These are in it.`,
+      `${products[0].title} is a good place to start in the ${chosen.title} collection.`,
       products
     );
   } catch {
@@ -3745,7 +3895,7 @@ function buildFastRecommendReply(text, catalog) {
 
       if (typed) {
         return talk(
-          `You asked for ${typed.label}. These are in that category.`,
+          `These are the ${typed.label} scents I'd put on the counter.`,
           typed.products.map((item) =>
             cardFields(item, { suggested: true })
           ),
@@ -3758,10 +3908,7 @@ function buildFastRecommendReply(text, catalog) {
 
     const asked = scentTerms.join(" and ");
     const names = ranked.map((row) => row.product.title).filter(Boolean);
-    const reply =
-      ranked.length === 1
-        ? `${names[0]} is the one for ${asked}.`
-        : `You asked for ${asked}. These actually list it.`;
+    const reply = staffNoteReply(names, asked);
 
     return talk(
       reply,
@@ -3774,7 +3921,7 @@ function buildFastRecommendReply(text, catalog) {
 
     if (typed) {
       return talk(
-        `You asked for ${typed.label}. These are in that category.`,
+        `These are the ${typed.label} scents I'd put on the counter.`,
         typed.products.map((item) => cardFields(item))
       );
     }
@@ -3790,8 +3937,8 @@ function buildFastRecommendReply(text, catalog) {
 
       return talk(
         named.length === 1
-          ? `${title} is the one you asked about.`
-          : "You asked about that name. These are the ones that match it.",
+          ? `${title} is the one you named.`
+          : `${named[0].title} matches that name, and these sit with it.`,
         named.map((item) => cardFields(item))
       );
     }
@@ -3806,7 +3953,7 @@ function buildFastRecommendReply(text, catalog) {
   if (!priced.length) {
     return talk(
       "That budget is tight here. These are the ones I'd still look at.",
-      wearablePicks(catalog).map((item) =>
+      diversePicks(catalog).map((item) =>
         cardFields(item, { suggested: true })
       ),
       { suggested: true }
@@ -3814,7 +3961,9 @@ function buildFastRecommendReply(text, catalog) {
   }
 
   return talk(
-    "You asked for that budget. These fit it.",
+    priced.length === 1
+      ? `${priced[0].title} fits that budget.`
+      : `${priced[0].title} fits that budget. The others do too.`,
     priced.map((item) => cardFields(item))
   );
 }
@@ -3855,10 +4004,7 @@ function buildFactualIngredientReply(terms, matches, catalog) {
   }
 
   const names = shown.map((item) => item.title);
-  const reply =
-    shown.length === 1
-      ? `${names[0]} is the one for ${label}.`
-      : `You asked for ${label}. These actually list it.`;
+  const reply = staffNoteReply(names, label);
 
   return {
     reply,
@@ -4037,8 +4183,8 @@ function buildFactualBestsellerReply(text, ranked) {
 
     return {
       reply: listSize
-        ? `You asked for the top ${listSize}. These lead the order list.`
-        : "You asked for the best sellers. These lead the order list.",
+        ? `These are the top ${listSize} across all store orders, not just this season.`
+        : "These lead all store orders, not just this season.",
       intent: "recommend",
       title: "",
       handle: "",
@@ -4067,8 +4213,8 @@ function buildFactualBestsellerReply(text, ranked) {
   const top = picked;
   const reply =
     place === 1
-      ? `${top.title} is our top seller, from real orders.`
-      : `${top.title} is our ${rankLabel(place)} top seller, from real orders.`;
+      ? `${top.title} is our top seller across all store orders, not just this season.`
+      : `${top.title} is our ${rankLabel(place)} top seller across all store orders.`;
 
   return {
     reply,
@@ -5709,6 +5855,24 @@ module.exports = async (
       rawText
     );
 
+  const guestName =
+    String(body.guest_name || "").trim();
+
+  const openingVisit =
+    body.opening === true;
+
+  const shapeReply = (payload) => {
+    const personal = openWithGuest(
+      payload,
+      guestName,
+      openingVisit
+    );
+
+    personal.reply = limitReplyWords(personal.reply);
+
+    return personal;
+  };
+
   const sessionId =
     sanitizeSession(
       body.session_id
@@ -5834,21 +5998,19 @@ module.exports = async (
   }
 
   try {
+    await loadBestsellerProducts().catch(() => []);
+
     if (isBestsellerQuestion(text)) {
       const ranked =
         await loadBestsellerProducts()
           .catch(() => []);
 
-      const payload =
+      const payload = shapeReply(
         buildFactualBestsellerReply(
           text,
           ranked
-        );
-
-      payload.reply =
-        limitReplyWords(
-          payload.reply
-        );
+        )
+      );
 
       return res
         .status(200)
@@ -5894,17 +6056,13 @@ module.exports = async (
           ingredientTerms
         );
 
-      const payload =
+      const payload = shapeReply(
         buildFactualIngredientReply(
           ingredientTerms,
           matches,
           catalog
-        );
-
-      payload.reply =
-        limitReplyWords(
-          payload.reply
-        );
+        )
+      );
 
       return res
         .status(200)
@@ -5943,15 +6101,12 @@ module.exports = async (
       );
 
     const sendFast = (payload) => {
-      payload.reply =
-        limitReplyWords(
-          payload.reply
-        );
+      const personal = shapeReply(payload);
 
       return res
         .status(200)
         .json({
-          ...payload,
+          ...personal,
 
           remaining:
             Math.max(

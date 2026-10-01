@@ -2794,8 +2794,12 @@
     /*
      * Prefer complete sentences first.
      */
+    const sentenceSource = text.replace(
+      /(\d)\.(\d)/g,
+      "$1\u0000$2"
+    );
     const sentenceMatches =
-      text.match(
+      sentenceSource.match(
         /[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g
       );
 
@@ -2809,7 +2813,8 @@
           return sentence.trim();
         })
         .filter(Boolean)
-        .join(" ");
+        .join(" ")
+        .replace(/\u0000/g, ".");
     }
 
     const words = text.split(/\s+/).filter(Boolean);
@@ -4368,7 +4373,7 @@
       "<p class='welcome-copy'>" +
       "<strong>" +
       escapeHtml(guestDisplayName()) +
-      "</strong>, you're in. Let's find something quietly luxurious. First note: “" +
+      "</strong>, you're in. I'll start from “" +
       escapeHtml(query) +
       "”." +
       "</p>" +
@@ -5368,7 +5373,8 @@
     showStep(3);
 
     askAssistant(
-      selectedQuery
+      selectedQuery,
+      { opening: true }
     );
   }
 
@@ -5378,7 +5384,7 @@
    * ---------------------------------------------------------
    */
 
-  async function askAssistant(query) {
+  async function askAssistant(query, options) {
     const text =
       String(query || "").trim();
 
@@ -5437,6 +5443,15 @@
 
                 email:
                   customerEmail,
+
+                guest_name:
+                  guestDisplayName(),
+
+                opening:
+                  Boolean(
+                    options &&
+                      options.opening
+                  ),
 
                 session_id:
                   getSessionId(),

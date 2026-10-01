@@ -174,7 +174,7 @@ async function run() {
   );
   assert.match(
     t.noMatchReply("zzzincense", []).reply,
-    /i'd start with these/i
+    /i can't find zzzincense/i
   );
   assert.strictEqual(t.isSuggestionYes("yes"), true);
   assert.strictEqual(t.isSuggestionYes("haan"), true);

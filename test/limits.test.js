@@ -348,8 +348,9 @@ async function run() {
     coupons: [],
   });
   assert.ok(/Yes/i.test(saleReply.reply));
-  assert.ok(/54\.40/.test(saleReply.reply));
-  assert.ok(/no published coupon code/i.test(saleReply.reply));
+  assert.ok(/Fusion/i.test(saleReply.reply));
+  assert.strictEqual(saleReply.products[0].price, "$54.40");
+  assert.doesNotMatch(saleReply.reply, /coupon code/i);
 
   const noSaleReply = t.buildFactualDiscountReply({
     text: "any coupon for this product?",
@@ -359,7 +360,7 @@ async function run() {
   });
   assert.ok(/^No/i.test(noSaleReply.reply));
   assert.ok(/Amber Night/.test(noSaleReply.reply));
-  assert.ok(/no published coupon code/i.test(noSaleReply.reply));
+  assert.doesNotMatch(noSaleReply.reply, /coupon code/i);
 
   const withCode = t.buildFactualDiscountReply({
     text: "coupon code?",
