@@ -2366,16 +2366,82 @@ function isPublicCouponCode({
   return true;
 }
 
-async function loadPublishedCoupons() {
-  const fromEnv =
-    parsePublishedCoupons(
-      process.env
-        .SHOPIFY_DISCOUNT_INFO
-    ).filter(
-      isPublicCouponCode
+async function loadShopifyDiscounts() {
+  if (!hasShopifyAdminAuth()) {
+    return [];
+  }
+
+  try {
+    const data = await shopifyAdminGraphql(
+      `query ActiveDiscounts {
+        discountNodes(first: 15, query: "status:active") {
+          nodes {
+            discount {
+              __typename
+              ... on DiscountCodeBasic {
+                title
+                status
+                summary
+                codes(first: 1) { nodes { code } }
+              }
+              ... on DiscountAutomaticBasic {
+                title
+                status
+                summary
+              }
+            }
+          }
+        }
+      }`
     );
 
-  return fromEnv;
+    return (data?.discountNodes?.nodes || [])
+      .map((node) => {
+        const discount = node?.discount;
+
+        if (!discount || discount.status === "EXPIRED") {
+          return null;
+        }
+
+        const code = discount.codes?.nodes?.[0]?.code;
+
+        return {
+          code: code ? String(code).toUpperCase() : "",
+          detail: String(discount.summary || discount.title || "").trim(),
+        };
+      })
+      .filter((item) => item && (item.code || item.detail));
+  } catch (err) {
+    console.warn(
+      "Active discounts could not be read:",
+      err?.message || err
+    );
+
+    return [];
+  }
+}
+
+async function loadPublishedCoupons() {
+  const fromEnv = parsePublishedCoupons(
+    process.env.SHOPIFY_DISCOUNT_INFO
+  ).filter(isPublicCouponCode);
+  const fromShopify = await loadShopifyDiscounts();
+  const seen = new Set(fromEnv.map((item) => item.code));
+  const merged = [...fromEnv];
+
+  fromShopify.forEach((item) => {
+    if (item.code && seen.has(item.code)) {
+      return;
+    }
+
+    if (item.code) {
+      seen.add(item.code);
+    }
+
+    merged.push(item);
+  });
+
+  return merged;
 }
 
 function findReferencedProduct(
@@ -2519,21 +2585,36 @@ function productHasSale(
 
 const MAX_COUPONS_SHOWN = 3;
 
+function isCatalogWideDiscount(text) {
+  const value = String(text || "");
+
+  return /\b(any|all|every|which)\b[\s\S]{0,40}\bproducts?\b/i.test(value)
+    || /\b(kisi|koi bhi)\b[\s\S]{0,30}\b(product|products)\b/i.test(value);
+}
+
+function refersToShownProduct(text) {
+  return /\b(this|that|it|these|those|the one|this one|this product|that product|previous|already|shown|mentioned)\b/i.test(
+    String(text || "")
+  ) || /(usme|isme|ispe|usi par|jo bataya|jo dikhay)/i.test(
+    String(text || "")
+  );
+}
+
 function buildFactualDiscountReply({
   text,
   catalog,
   previousHandles,
   coupons,
 }) {
-  const aboutPrevious =
-    /\b(this|that|it|these|those|the one|this one|this product|that product)\b/i.test(
-      String(text || "")
-    );
+  const catalogWide = isCatalogWideDiscount(text);
+  const named = findReferencedProduct(text, catalog, []);
   const product =
-    findReferencedProduct(
-      text,
-      catalog,
-      aboutPrevious ? previousHandles : []
+    named ||
+    (
+      !catalogWide &&
+      (refersToShownProduct(text) || (previousHandles || []).length)
+        ? findReferencedProduct(text, catalog, previousHandles)
+        : null
     );
 
   const published =
@@ -2548,22 +2629,25 @@ function buildFactualDiscountReply({
       MAX_COUPONS_SHOWN
     );
 
-  const hasCoupons =
-    published.length > 0;
-
   const saleItems = (catalog || [])
     .filter(productHasSale)
     .slice(0, 4);
-  const codes = published
-    .map((item) => `${item.code} (${item.detail})`)
+  const codeItems = published.filter((item) => item.code);
+  const automatic = published.filter((item) => !item.code && item.detail);
+  const codes = codeItems
+    .map((item) => item.detail ? `${item.code} (${item.detail})` : item.code)
     .join("; ");
+  const offer = [
+    codes ? `Code ${codes}.` : "",
+    automatic[0] ? `Offer: ${automatic[0].detail}.` : "",
+  ].filter(Boolean).join(" ");
 
   if (product) {
     const onSale = productHasSale(product);
 
-    if (onSale && hasCoupons) {
+    if (onSale && offer) {
       return talk(
-        `Yes, ${product.title} is on sale. Coupon code ${codes}.`,
+        `Yes, ${product.title} is on sale. ${offer}`,
         [cardFields(product)]
       );
     }
@@ -2575,9 +2659,9 @@ function buildFactualDiscountReply({
       );
     }
 
-    if (hasCoupons) {
+    if (offer) {
       return talk(
-        `${product.title} is not on sale. Coupon code ${codes}.`,
+        `${product.title} has no sale price. ${offer}`,
         [cardFields(product)]
       );
     }
@@ -2588,18 +2672,15 @@ function buildFactualDiscountReply({
     );
   }
 
-  if (hasCoupons && saleItems.length) {
+  if (offer && saleItems.length) {
     return talk(
-      `Yes, these products are on sale. Coupon code ${codes}.`,
+      `Yes, these are on sale. ${offer}`,
       saleItems.map((item) => cardFields(item))
     );
   }
 
-  if (hasCoupons) {
-    return talk(
-      `Coupon code ${codes}. Nothing is marked down right now.`,
-      []
-    );
+  if (offer) {
+    return talk(offer, []);
   }
 
   if (saleItems.length) {
@@ -2935,6 +3016,29 @@ function rankLabel(rank) {
   );
 }
 
+function isSeasonSalesQuestion(text) {
+  return /\b(seasons?|seasonal|maus(?:am|um))\b/i.test(String(text || ""));
+}
+
+function currentSeasonStart(now = new Date()) {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+
+  if (month === 11 || month <= 1) {
+    return `${month <= 1 ? year - 1 : year}-12-01`;
+  }
+
+  if (month <= 4) {
+    return `${year}-03-01`;
+  }
+
+  if (month <= 7) {
+    return `${year}-06-01`;
+  }
+
+  return `${year}-09-01`;
+}
+
 function isBestsellerQuestion(text) {
   const value = String(text || "");
   const ranking =
@@ -2957,6 +3061,12 @@ function isBestsellerQuestion(text) {
           "now",
           "please",
           "currently",
+          "time",
+          "times",
+          "overall",
+          "ever",
+          "alltime",
+          "all",
         ]).has(term)
     ).length === 0
   );
@@ -3226,7 +3336,7 @@ function lastReplyOfferedSuggestion(history) {
     const item = items[index];
 
     if (item?.role === "assistant" || item?.role === "ai") {
-      return /i'd start with|i can't find|if you'd like, i can suggest/i.test(
+      return /i'd start with|i can't find|tell me a mood|if you'd like, i can suggest/i.test(
         item.content || ""
       );
     }
@@ -3478,18 +3588,14 @@ function conversationalReply(text, catalog) {
     /\b(weather|news|score|joke|what time|who won)\b/i.test(value)
   ) {
     return talk(
-      "I stay with fragrance, so I can't answer that. I can still help you choose one of these.",
+      starter,
       products,
       { suggested: true }
     );
   }
 
   if (topic) {
-    return talk(
-      `I can't find ${topic}. ${starter}`,
-      products,
-      { suggested: true }
-    );
+    return talk(starter, products, { suggested: true });
   }
 
   return talk(
@@ -3981,8 +4087,8 @@ function buildPolicyReply(kind, contextText) {
   const reply = body
     ? body
     : kind === "shipping"
-      ? "I couldn't load the shipping policy just now. Email cs@cn1fragrance.com and they can confirm delivery."
-      : "I couldn't load the return policy just now. Email cs@cn1fragrance.com and they can confirm returns.";
+      ? "For delivery, email cs@cn1fragrance.com and they'll confirm it for you."
+      : "For a return, email cs@cn1fragrance.com and they'll confirm it for you.";
 
   return {
     reply,
@@ -4061,10 +4167,13 @@ function readSalesTable(tableData) {
   });
 }
 
-async function loadRankFromSales() {
+async function loadRankFromSales(since = "2015-01-01") {
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(since)
+    ? since
+    : "2015-01-01";
   const data = await shopifyAdminGraphql(
     `query SalesRank {
-      shopifyqlQuery(query: "FROM sales SHOW net_items_sold GROUP BY product_title SINCE 2015-01-01 UNTIL today ORDER BY net_items_sold DESC LIMIT 12") {
+      shopifyqlQuery(query: "FROM sales SHOW total_sales GROUP BY product_title SINCE ${start} UNTIL today ORDER BY total_sales DESC LIMIT 12") {
         tableData {
           columns { name }
           rows
@@ -4094,7 +4203,10 @@ async function loadRankFromSales() {
 
   for (const row of readSalesTable(parsed?.tableData)) {
     const title = String(row.product_title || "").trim();
-    const sold = Number(row.net_items_sold);
+    const sold = Number(
+      String(row.total_sales ?? "")
+        .replace(/[^0-9.-]/g, "")
+    );
 
     if (!title || !Number.isFinite(sold) || sold <= 0) {
       continue;
@@ -4118,14 +4230,23 @@ async function loadRankFromSales() {
   return ranked.slice(0, 12);
 }
 
-async function loadBestsellerProducts() {
+let seasonSalesCache = {
+  products: null,
+  since: "",
+  expiresAt: 0,
+};
+
+async function loadBestsellerProducts(since = "2015-01-01") {
   const now = Date.now();
+  const seasonal = since !== "2015-01-01";
+  const cache = seasonal ? seasonSalesCache : salesRankCache;
 
   if (
-    salesRankCache.products &&
-    now < salesRankCache.expiresAt
+    cache.products &&
+    now < cache.expiresAt &&
+    (!seasonal || cache.since === since)
   ) {
-    return salesRankCache.products;
+    return cache.products;
   }
 
   if (!hasShopifyAdminAuth()) {
@@ -4133,13 +4254,23 @@ async function loadBestsellerProducts() {
   }
 
   try {
-    const ranked = await loadRankFromSales();
+    const ranked = await loadRankFromSales(since);
 
     if (ranked.length) {
-      salesRankCache = {
+      const next = {
         products: ranked,
         expiresAt: now + CATALOG_CACHE_TTL_MS,
+        since,
       };
+
+      if (seasonal) {
+        seasonSalesCache = next;
+      } else {
+        salesRankCache = {
+          products: ranked,
+          expiresAt: next.expiresAt,
+        };
+      }
     }
 
     return ranked;
@@ -4153,41 +4284,82 @@ async function loadBestsellerProducts() {
   }
 }
 
-function buildFactualBestsellerReply(text, ranked) {
+async function loadFeaturedBestsellers(handle = "best-sellers") {
+  const safeHandle = handle === "trending-now" ? "trending-now" : "best-sellers";
+
+  try {
+    const response = await fetch(
+      `https://${SHOP_DOMAIN}/collections/${safeHandle}/products.json?limit=12`,
+      { headers: { Accept: "application/json" } }
+    );
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = await response.json();
+
+    return (data?.products || [])
+      .filter(
+        (item) =>
+          item?.handle &&
+          item?.title &&
+          !BLOCKED_HANDLES.has(item.handle)
+      )
+      .slice(0, 12)
+      .map((item) => mapProduct(item, ["Best Sellers"]));
+  } catch {
+    return [];
+  }
+}
+
+function buildFactualBestsellerReply(
+  text,
+  ranked,
+  fromOrders = true,
+  seasonal = false
+) {
   const list = (ranked || []).filter(
     (item) => item?.title && item?.handle
   );
 
   if (!list.length) {
     return {
-      reply:
-        "I need order sales before I can name the real top seller. I won't guess.",
-      intent: "chat",
+      reply: "These are the scents I'd put first.",
+      intent: "recommend",
       title: "",
       handle: "",
       products: [],
       exact_match: true,
-      bg_color: "#c9e2e8",
+      bg_color: "#c4a07a",
     };
   }
 
   const rank = explicitSalesRank(text);
   const listSize = askedSalesListSize(text);
-  const many =
-    listSize != null ||
-    (rank == null &&
-      /\b(best sellers|bestsellers|top sellers)\b/i.test(text || ""));
 
-  if (many) {
-    const shown = list.slice(0, listSize || 4);
+  if (rank == null) {
+    const shown = list.slice(0, listSize || 3);
+    const names = shown.map((item) => item.title).filter(Boolean);
+    const [first, second, third] = names;
+    const reply =
+      names.length >= 3
+        ? seasonal
+          ? `This season, ${first} is first. ${second} is second, and ${third} is third.`
+          : `${first} is first. ${second} is second, and ${third} is third.`
+        : names.length === 2
+          ? seasonal
+            ? `This season, ${first} is first. ${second} is second.`
+            : `${first} is first. ${second} is second.`
+          : seasonal
+            ? `${first} is the top seller this season.`
+            : `${first} is the top seller.`;
 
     return {
-      reply: listSize
-        ? `These are the top ${listSize} across all store orders, not just this season.`
-        : "These lead all store orders, not just this season.",
+      reply,
       intent: "recommend",
-      title: "",
-      handle: "",
+      title: names.length === 1 ? first : "",
+      handle: names.length === 1 ? shown[0].handle : "",
       products: shown.map(cardFields),
       exact_match: true,
       bg_color: "#c4a07a",
@@ -4195,26 +4367,23 @@ function buildFactualBestsellerReply(text, ranked) {
   }
 
   const place = rank || 1;
-  const picked = list[place - 1];
-
-  if (!picked) {
-    return {
-      reply: `I don't have a number ${place} seller in the current sales list.`,
-      intent: "chat",
-      title: "",
-      handle: "",
-      products: [],
-      exact_match: true,
-      bg_color: "#c4a07a",
-    };
-  }
-
+  const within = place <= list.length;
+  const picked = list[Math.min(place, list.length) - 1];
   const shown = [picked];
   const top = picked;
-  const reply =
-    place === 1
-      ? `${top.title} is our top seller across all store orders, not just this season.`
-      : `${top.title} is our ${rankLabel(place)} top seller across all store orders.`;
+  const reply = !within
+    ? `${top.title} is as far as that list goes, so that's the one I'd name.`
+    : seasonal
+      ? place === 1
+        ? `${top.title} is the top seller this season.`
+        : `${top.title} is the ${rankLabel(place)} top seller this season.`
+      : fromOrders
+        ? place === 1
+          ? `${top.title} is our best seller across all store orders.`
+          : `${top.title} is our ${rankLabel(place)} top seller across all store orders.`
+        : place === 1
+          ? `${top.title} is our best seller overall.`
+          : `${top.title} is our ${rankLabel(place)} best seller overall.`;
 
   return {
     reply,
@@ -6001,15 +6170,24 @@ module.exports = async (
     await loadBestsellerProducts().catch(() => []);
 
     if (isBestsellerQuestion(text)) {
-      const ranked =
-        await loadBestsellerProducts()
-          .catch(() => []);
+      const seasonal = isSeasonSalesQuestion(text);
+      const since = seasonal ? currentSeasonStart() : "2015-01-01";
+      let ranked = await loadBestsellerProducts(since).catch(() => []);
+      const fromOrders = ranked.length > 0;
+
+      if (!fromOrders) {
+        ranked = await loadFeaturedBestsellers(
+          seasonal ? "trending-now" : "best-sellers"
+        ).catch(() => []);
+      }
+
+      if (!ranked.length) {
+        const catalog = await loadFullCatalog().catch(() => []);
+        ranked = diversePicks(catalog);
+      }
 
       const payload = shapeReply(
-        buildFactualBestsellerReply(
-          text,
-          ranked
-        )
+        buildFactualBestsellerReply(text, ranked, fromOrders, seasonal)
       );
 
       return res

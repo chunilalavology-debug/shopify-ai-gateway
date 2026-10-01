@@ -142,11 +142,26 @@ async function run() {
   assert.strictEqual(secondSeller.products.length, 1);
   assert.strictEqual(secondSeller.products[0].handle, "bliss-apple");
   assert.match(secondSeller.reply, /Bliss Apple is our second top seller/i);
+  assert.match(secondSeller.reply, /all store orders/i);
+  const seasonSeller = t.buildFactualBestsellerReply(
+    "what is the top seller this season",
+    [{ title: "Belle Oui Body Splash", handle: "belle-oui" }],
+    true,
+    true
+  );
+  assert.match(seasonSeller.reply, /this season/i);
+  assert.doesNotMatch(seasonSeller.reply, /all store orders/i);
   const topSellerReply = t.buildFactualBestsellerReply(
     "what is the top seller",
     salesList
   );
+  assert.strictEqual(topSellerReply.products.length, 3);
   assert.strictEqual(topSellerReply.products[0].handle, "vanilla-harmony");
+  assert.strictEqual(topSellerReply.products[1].handle, "bliss-apple");
+  assert.strictEqual(topSellerReply.products[2].handle, "smoky-velvet");
+  assert.match(topSellerReply.reply, /Vanilla Harmony is first/i);
+  assert.match(topSellerReply.reply, /Bliss Apple is second/i);
+  assert.match(topSellerReply.reply, /Smoky Velvet is third/i);
 
   const titleOnlyWoods = fixture({
     title: "Regal Woods",
@@ -174,7 +189,7 @@ async function run() {
   );
   assert.match(
     t.noMatchReply("zzzincense", []).reply,
-    /i can't find zzzincense/i
+    /i'd start with|tell me a mood/i
   );
   assert.strictEqual(t.isSuggestionYes("yes"), true);
   assert.strictEqual(t.isSuggestionYes("haan"), true);
@@ -295,16 +310,25 @@ async function run() {
   );
   assert.strictEqual(best.statusCode, 200);
   assert.strictEqual(best.body.exact_match, true);
-  assert.strictEqual(best.body.products.length, 0);
-  assert.match(best.body.reply, /order sales/i);
+  assert.ok(best.body.products.length > 0, best.body.reply);
+  assert.doesNotMatch(best.body.reply, /won't guess|i need order sales/i);
   console.log(best.body.reply);
 
   const bestEnglish = await post(
     "Which is your best selling product?"
   );
-  assert.strictEqual(bestEnglish.body.products.length, 0);
-  assert.match(bestEnglish.body.reply, /order sales/i);
+  assert.ok(bestEnglish.body.products.length > 0, bestEnglish.body.reply);
+  assert.doesNotMatch(bestEnglish.body.reply, /won't guess|i need order sales|this season/i);
   console.log(bestEnglish.body.reply);
+
+  const season = await post("What is the top selling product this season?");
+  assert.ok(season.body.products.length > 0, season.body.reply);
+  assert.match(season.body.reply, /this season/i);
+  assert.notStrictEqual(
+    season.body.products[0].handle,
+    bestEnglish.body.products[0].handle
+  );
+  console.log(season.body.reply);
 
   console.log("OK — ingredient and best-seller answers matched the live catalog");
 }
